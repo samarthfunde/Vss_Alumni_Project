@@ -74,6 +74,10 @@ const Header = () => {
                             </li> */}
                             <li className="nav-item"><Link onClick={toggleMenu} className={`nav-link js-scroll-trigger ${isActive("/")}`} to="/">Home</Link></li>
                             <li className="nav-item"><Link onClick={toggleMenu} className={`nav-link js-scroll-trigger ${isActive("/alumni")}`} to="/alumni">Alumni</Link></li>
+ <li className="nav-item"><Link onClick={toggleMenu} className={`nav-link js-scroll-trigger ${isActive("/gallery")}`} to="/gallery">Gallery</Link></li>
+                            <li className="nav-item"><Link onClick={toggleMenu} className={`nav-link js-scroll-trigger ${isActive("/jobs")}`} to="/jobs">Jobs</Link></li>
+                            <li className="nav-item"><Link onClick={toggleMenu} className={`nav-link js-scroll-trigger ${isActive("/forums")}`} to="/forums">Forums</Link></li>
+                            <li className="nav-item"><Link onClick={toggleMenu} className={`nav-link js-scroll-trigger ${isActive("/about")}`} to="/about">About</Link></li>
                             <li className="nav-item">
   <a
     href="https://mvmsamiti.org/donation/"
@@ -85,13 +89,6 @@ const Header = () => {
     Donate
   </a>
 </li>
-
-
-
-                            <li className="nav-item"><Link onClick={toggleMenu} className={`nav-link js-scroll-trigger ${isActive("/gallery")}`} to="/gallery">Gallery</Link></li>
-                            <li className="nav-item"><Link onClick={toggleMenu} className={`nav-link js-scroll-trigger ${isActive("/jobs")}`} to="/jobs">Jobs</Link></li>
-                            <li className="nav-item"><Link onClick={toggleMenu} className={`nav-link js-scroll-trigger ${isActive("/forums")}`} to="/forums">Forums</Link></li>
-                            <li className="nav-item"><Link onClick={toggleMenu} className={`nav-link js-scroll-trigger ${isActive("/about")}`} to="/about">About</Link></li>
                             {isLoggedIn ? <></> : (<li className="nav-item"><Link onClick={toggleMenu} className={`nav-link js-scroll-trigger ${isActive("/login")}`} to="/login" id="login">Login</Link></li>)}
                             {isLoggedIn ? (<li className="nav-item dropdown">
                                 <Link className="nav-link " role="button" data-bs-toggle="dropdown" aria-expanded="false">
