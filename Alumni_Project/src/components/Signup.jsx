@@ -12,10 +12,13 @@ const Signup = () => {
         password: "",
         userType: "",
         course_id: "",
-        grn_number: "", // Added
+        course_name: "",
+        grn_number: "",
     });
 
     const [courses, setCourses] = useState([]);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [hoveredItem, setHoveredItem] = useState(null);  // To manage hover effect
     const navigate = useNavigate();
 
     const handleSubmit = (e) => {
@@ -38,7 +41,6 @@ const Signup = () => {
             })
             .catch(err => {
                 console.error("Signup error:", err);
-
                 const errorMsg = err?.response?.data?.sqlMessage ||
                     err?.response?.data?.message ||
                     "An unexpected error occurred";
@@ -54,6 +56,19 @@ const Signup = () => {
             })
             .catch(err => console.log(err));
     }, []);
+
+    const handleCourseClick = () => {
+        setIsDropdownOpen(!isDropdownOpen); // Toggle dropdown visibility
+    };
+
+    const handleCourseSelect = (course) => {
+        setValues({
+            ...values,
+            course_id: course.id,
+            course_name: course.course, // Store the selected course name
+        });
+        setIsDropdownOpen(false); // Close the dropdown after selection
+    };
 
     return (
         <>
@@ -111,6 +126,7 @@ const Signup = () => {
                                         </div>
                                         <div className="form-group">
                                             <label htmlFor="userType" className="control-label">User Type</label>
+                                            <br />
                                             <select
                                                 onChange={(e) => setValues({ ...values, userType: e.target.value })}
                                                 className="custom-select"
@@ -118,6 +134,7 @@ const Signup = () => {
                                                 name="userType"
                                                 required
                                                 value={values.userType}
+                                                style={{ width: '50%' }}
                                             >
                                                 <option value="" disabled>Please select</option>
                                                 <option value="alumnus">Alumnus</option>
@@ -126,26 +143,45 @@ const Signup = () => {
                                             </select>
                                         </div>
 
-                                        {/* Conditionally show Course selector for alumnus */}
                                         {values.userType === "alumnus" && (
                                             <div className="form-group">
                                                 <label htmlFor="course_id" className="control-label">Course</label>
-                                                <select
-                                                    onChange={(e) => setValues({ ...values, course_id: e.target.value })}
-                                                    className="form-control select2"
-                                                    name="course_id"
-                                                    required
-                                                    value={values.course_id}
-                                                >
-                                                    <option disabled value="">Select course</option>
-                                                    {courses.map(c => (
-                                                        <option key={c.id} value={c.id}>{c.course}</option>
-                                                    ))}
-                                                </select>
+                                                <div className="form-control" onClick={handleCourseClick} style={{ cursor: 'pointer' }}>
+                                                    {values.course_name || 'Select Course'}
+                                                </div>
+                                                {isDropdownOpen && (
+                                                    <div className="dropdown-list" style={{
+                                                        border: '1px solid #ccc',
+                                                        maxHeight: '200px',
+                                                        overflowY: 'auto',
+                                                        position: 'absolute',
+                                                        background: '#fff',
+                                                        width: 'calc(100% - 30px)', // Decrease width by 20px
+                                                        zIndex: 1000,
+                                                        borderRadius: '4px',
+                                                    }}>
+                                                        {courses.map((course) => (
+                                                            <div
+                                                                key={course.id}
+                                                                className="dropdown-item"
+                                                                onClick={() => handleCourseSelect(course)}
+                                                                style={{
+                                                                    padding: '8px',
+                                                                    cursor: 'pointer',
+                                                                    backgroundColor: hoveredItem === course.id ? '#f1f1f1' : 'transparent',
+                                                                    marginBottom: '5px',
+                                                                }}
+                                                                onMouseEnter={() => setHoveredItem(course.id)} // Set hover state
+                                                                onMouseLeave={() => setHoveredItem(null)} // Reset hover state
+                                                            >
+                                                                {course.course}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 
-                                        {/* Conditionally show GRN Number for student */}
                                         {values.userType === "student" && (
                                             <div className="form-group">
                                                 <label htmlFor="grn_number" className="control-label">GRN Number</label>
