@@ -3,7 +3,8 @@ import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import "./styles/style.css";
 import "react-toastify/dist/ReactToastify.css";
 import Home from './components/Home';
-import Footer from './components/Footer';
+import Footer from './components/Footer'; 
+import MyNetwork from "./components/MyNetwork";
 import Header from "./components/Header";
 import AlumniList from "./components/AlumniList";
 import Gallery from "./components/Gallery";
@@ -76,7 +77,8 @@ function AppRouter() {
         {isLoggedIn ? (
     <>
         <Route path="/alumni" element={<AlumniList />} />
-        <Route path="/jobs" element={<Careers />} />
+        <Route path="/jobs" element={<Careers />} /> 
+        <Route path="/MyNetwork" element={<MyNetwork/>}/>
     </>
 ):(   
 

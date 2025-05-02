@@ -1,41 +1,84 @@
 import axios from 'axios';
 import React, { useEffect, useState } from 'react';
 import { FaSearch } from 'react-icons/fa';
-import defaultavatar from "../assets/uploads/defaultavatar.jpg"
+import defaultavatar from "../assets/uploads/defaultavatar.jpg";
+import checkTick from "../assets/check_tick.png";
+import crossIcon from "../assets/cross_icon.png";
 import { baseUrl } from '../utils/globalurl';
-
+import { useAuth } from '../AuthContext';
 
 const AlumniList = () => {
     const [alumniList, setAlumniList] = useState([]);
     const [filteredAlumni, setFilteredAlumnni] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
+    const [showModal, setShowModal] = useState(false);
+    const [selectedAlumni, setSelectedAlumni] = useState(null);
+    const { isAdmin, isAlumnus, isStudent } = useAuth();  
 
+    // Fetch the alumni list
     useEffect(() => {
         axios.get(`${baseUrl}auth/alumni_list`)
-        // axios.get("http://localhost:3000/auth/alumni_list")
             .then((res) => {
-                console.log(res.data);
                 setAlumniList(res.data);
             })
             .catch((err) => console.log(err));
-    }, []);
+    }, []); 
 
+    // Handle the search input change
     const handleSearchInputChange = (e) => {
         setSearchQuery(e.target.value);
-    }
+    };
 
-
+    // Filter the alumni list based on search query
     useEffect(() => {
         if (alumniList.length > 0) {
             const filteredlist = alumniList.filter(list =>
                 list.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 list.course.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 list.batch.toString().includes(searchQuery)
-                // list.batch.toString() === searchQuery
             );
             setFilteredAlumnni(filteredlist);
         }
     }, [searchQuery, alumniList]);
+
+    // Open modal to view alumni details
+    const openModal = (alumni) => {
+        setSelectedAlumni(alumni);
+        setShowModal(true);
+    };
+
+    // Close the modal
+    const closeModal = () => {
+        setShowModal(false);
+        setSelectedAlumni(null);
+    }; 
+
+    // Handle connection request
+    const handleConnect = (receiverId) => { 
+        const storedUserId = localStorage.getItem("user_id");
+        const senderId = storedUserId;
+      // console.log(receiverId); 
+      console.log(senderId);
+       
+      
+        if (!senderId) return alert('User not logged in');
+      
+       //`${baseUrl}auth/connection/send`
+           
+        axios.post(`${baseUrl}auth/connection/send`, {
+            sender_id: senderId,
+            receiver_id: receiverId,
+        })
+          .then((res) => { 
+       //   console.log(res.data.message);
+            alert(res.data.message); // Or show a toast/snackbar
+          })
+          .catch((err) => { 
+            console.log(err);
+            const msg = err.response?.data?.message || "Something went wrong";
+            alert(msg);
+          });
+      };
 
     return (
         <>
@@ -43,97 +86,164 @@ const AlumniList = () => {
                 <div className="container-fluid h-100">
                     <div className="row h-100 align-items-center justify-content-center text-center">
                         <div className="col-lg-8 align-self-end mb-4 page-title">
-                            <h3 className="text-white">Alumnus/Alumnae List</h3>
+                            <h3 className="text-white">Alumni List</h3>
                             <hr className="divider my-4" />
                         </div>
                     </div>
                 </div>
             </header>
-            {alumniList.length > 0 && <div className="container mt-4">
-                <div className="card mb-4">
-                    <div className="card-body">
-                        <div className="row">
-                            <div className="col-md-8">
-                                <div className="input-group mb-3">
-                                    <div className="input-group-prepend">
-                                        <span className="input-group-text" id="filter-field">
-                                            <FaSearch />
-                                        </span>
+
+            {alumniList.length > 0 && (
+                <div className="container mt-4">
+                    <div className="card mb-4">
+                        <div className="card-body">
+                            <div className="row">
+                                <div className="col-md-8">
+                                    <div className="input-group mb-3">
+                                        <div className="input-group-prepend">
+                                            <span className="input-group-text" id="filter-field">
+                                                <FaSearch />
+                                            </span>
+                                        </div>
+                                        <input
+                                            value={searchQuery}
+                                            onChange={handleSearchInputChange}
+                                            type="text"
+                                            className="form-control"
+                                            id="filter"
+                                            placeholder="Filter name, course, batch"
+                                            aria-label="Filter"
+                                            aria-describedby="filter-field"
+                                        />
                                     </div>
-                                    <input
-                                        value={searchQuery} onChange={handleSearchInputChange}
-                                        type="text"
-                                        className="form-control"
-                                        id="filter"
-                                        placeholder="Filter name, course, batch"
-                                        aria-label="Filter"
-                                        aria-describedby="filter-field"
-                                    />
+                                </div>
+                                <div className="col-md-4">
+                                    <button className="btn btn-primary btn-block" id="search">
+                                        Search
+                                    </button>
                                 </div>
                             </div>
-                            <div className="col-md-4">
-                                <button className="btn btn-primary btn-block" id="search">
-                                    Search
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <div className="row">
+                {alumniList
+                    .filter(a => {
+                        // Admin sees everyone; Student/Alumnus sees only verified
+                        if (isAdmin) return true;
+                        if ((isStudent || isAlumnus) && a.status === 1) return true;
+                        return false;
+                    })
+                    .map((a, index) => (
+                        <div className="col-md-4 mb-4" key={index}>
+                            <div className="card h-100 shadow-sm d-flex flex-column">
+                                <center>
+                                    <img
+                                        src={a.avatar ? `${baseUrl}${a.avatar}` : defaultavatar}
+                                        className="card-img-top img-fluid alimg"
+                                        alt="avatar"
+                                    />
+                                </center>
+                                <div className="card-body d-flex flex-column justify-content-between">
+                                    {/* Name + Tick/Cross for Admin only */}
+                                    <div className="d-flex align-items-center justify-content-start mb-2">
+                                        <h5 className="card-title mb-0" style={{ marginRight: '10px' }}>
+                                            {a.name}
+                                        </h5>
+                                        {isAdmin && (
+                                            <>
+                                                {a.status === 1 ? (
+                                                    <img
+                                                        src={checkTick}
+                                                        alt="Verified"
+                                                        style={{ width: '38px', height: '38px' }}
+                                                    />
+                                                ) : (
+                                                    <img
+                                                        src={crossIcon}
+                                                        alt="Unverified"
+                                                        style={{ width: '38px', height: '38px' }}
+                                                    />
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+
+                                    {/* Alumni details */}
+                                    <div>
+                                        <p className="card-text"><strong>Email:</strong> {a.email}</p>
+                                        {a.course && <p className="card-text"><strong>Course:</strong> {a.course}</p>}
+                                        {a.batch !== "0000" && <p className="card-text"><strong>Batch:</strong> {a.batch}</p>}
+                                        {a.connected_to && <p className="card-text"><strong>Currently working in/as:</strong> {a.connected_to}</p>}
+                                    </div>
+
+                                    {/* Buttons */}
+                                    {localStorage.getItem("user_name") !== a.name && (
+                                        <div className="mt-auto pt-3 d-flex justify-content-center gap-3">
+                                            <button className="btn btn-outline-primary" style={{ width: '90px' }} onClick={() => openModal(a)}>
+                                                Show
+                                            </button>
+                                            <button className="btn btn-primary" style={{ width: '90px' }} onClick={() => handleConnect(a.user_id)}>
+
+                                                Connect
+                                            </button>
+                                        </div>
+                                    )}
+                                    {localStorage.getItem("user_name") === a.name && (
+                                        <div className="mt-auto pt-3 d-flex justify-content-center gap-3">
+                                            <button className="btn btn-outline-primary" style={{ width: '90px' }} onClick={() => openModal(a)}>
+                                                Show
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+            </div>
+
+            {/* Modal */}
+            {showModal && selectedAlumni && (
+                <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                    <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: '800px', width: '80%', height: '80vh', maxHeight: '90vh', minHeight: '300px' }}>
+                        <div className="modal-content" style={{ height: '100%', overflowY: 'auto', borderRadius: '10px' }}>
+                            <div className="modal-header" style={{ borderBottom: '1px solid #dee2e6' }}>
+                                <h5 className="modal-title">{selectedAlumni.name}</h5>
+                                <button
+                                    type="button"
+                                    className="close"
+                                    onClick={closeModal}
+                                    style={{ background: 'none', border: 'none', fontSize: '1.5rem' }}
+                                    aria-label="Close"
+                                >
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </div>
+
+                            <div className="modal-body" style={{ padding: '20px' }}>
+                                <div>
+                                    <p><strong>Email:</strong> {selectedAlumni.email}</p>
+                                    {selectedAlumni.course && <p><strong>Course:</strong> {selectedAlumni.course}</p>}
+                                    {selectedAlumni.batch !== "0000" && <p><strong>Batch:</strong> {selectedAlumni.batch}</p>}
+                                    {selectedAlumni.connected_to && <p><strong>Currently working in/as:</strong> {selectedAlumni.connected_to}</p>}
+                                </div>
+                            </div>
+
+                            <div className="modal-footer" style={{ borderTop: '1px solid #dee2e6' }}>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={closeModal}
+                                >
+                                    Close
                                 </button>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>}
-            <div className="container-fluid mt-3 pt-2">
-                {filteredAlumni.length > 0 ? <>
-                    <div className="row">
-                        {filteredAlumni.map((a, index) => (
-                            <div className="col-md-4 mb-4" key={index}>
-                                <div className="card h-100 shadow-sm">
-                                    <center>
-                                        {a.avatar ?
-                                            <img
-                                                src={`${baseUrl}${a.avatar}`}
-                                                className="card-img-top img-fluid alimg "
-                                                alt="avatar"
-                                            /> : <>
-                                                <img
-                                                    src={defaultavatar}
-                                                    className="card-img-top img-fluid alimg "
-                                                    alt="avatar"
-                                                />
-                                            </>}
-                                    </center>
-                                    <div className="card-body">
-                                        <h5 className="card-title text-center pad-zero ">{a.name} <small>
-                                            <i className={`badge badge-primary ${a.status === 1 ? '' : 'd-none'}`}>
-                                                Verified
-                                            </i>
-                                            <i className={`badge badge-warning ${a.status === 0 ? '' : 'd-none'}`}>
-                                                Unverified
-                                            </i>
-                                        </small></h5>
-
-                                        <p className="card-text">
-                                            <strong>Email:</strong> {a.email}
-                                        </p>
-                                        {a.course && <p className="card-text">
-                                            <strong>Course:</strong> {a.course}
-                                        </p>}
-                                        {a.batch != "0000" && <p className="card-text">
-                                            <strong>Batch:</strong> {a.batch}
-                                        </p>}
-                                        {a.connected_to && <p className="card-text">
-                                            <strong>Currently working in/as:</strong> {a.connected_to}
-                                        </p>}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </> : <>
-                    <div className="d-flex flex-column justify-content-center align-items-center">
-                        <p >{searchQuery}</p>
-                        <h4 className='text-info-emphasis'>No Data Available</h4>
-                    </div>
-                </>}
-            </div>
+            )}
         </>
     );
 };

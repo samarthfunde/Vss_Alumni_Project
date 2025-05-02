@@ -33,7 +33,6 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };*/ 
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 const AuthContext = createContext();
@@ -44,19 +43,27 @@ export const AuthProvider = ({ children }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAlumnus, setIsAlumnus] = useState(false);
   const [isStudent, setIsStudent] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false); 
+ //onst [userId, setUserId] = useState(null);
 
   const login = () => setIsLoggedIn(true);
   const logout = () => {
     setIsLoggedIn(false);
     setIsAdmin(false);
     setIsAlumnus(false);
-    setIsStudent(false);
+    setIsStudent(false);  
+    setUserId(null);
+   //ocalStorage.removeItem('user_id');
     localStorage.removeItem('user_type'); // Optional: clear user type on logout
   };
 
   useEffect(() => {
-    const user = localStorage.getItem('user_type');
+    const user = localStorage.getItem('user_type');  
+   //onst storedUserId = localStorage.getItem('user_id'); 
+   /*f (storedUserId) {
+      setUserId(storedUserId);
+    }*/
+  
     if (user === 'admin') {
       setIsAdmin(true);
       setIsAlumnus(false);
@@ -87,7 +94,8 @@ export const AuthProvider = ({ children }) => {
         isAlumnus,
         isStudent,
         isLoggedIn,
-        login,
+        login, 
+       //serId,
         logout
       }}
     >

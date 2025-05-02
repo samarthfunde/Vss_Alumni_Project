@@ -1,7 +1,8 @@
 import express from "express";
 import cors from "cors";
 import { adminRouter } from "./Routes/AdminRoutes.js";
-import dotenv from "dotenv";
+import dotenv from "dotenv"; 
+
 
 dotenv.config();
 
@@ -27,7 +28,8 @@ app.get("/", (req, res) => {
     res.send("Hello from Alumni Server!");
 });
 
-app.use("/auth", adminRouter);
+app.use("/auth", adminRouter); 
+
 app.use('/Public', express.static('Public'));
 
 const PORT = process.env.DB_PORT || 3000;
