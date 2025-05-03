@@ -673,17 +673,7 @@ router.get("/up_events", (req, res) => {
     });
 });
 
-// router.get("/alumni_list", (req, res) => {
-//     const sql = "SELECT a.*,c.course,a.name as name from alumnus_bio a inner join courses c on c.id = a.course_id order by a.name asc";
-//     con.query(sql, (err, result) => {
-//         if (err) return res.json({ Error: "Query Error" })
-//         if (result.length > 0) {
-//             return res.json(result);
-//         } else {
-//             return res.json({ message: "No Alumni available" })
-//         }
-//     });
-// });
+
 router.get("/alumni_list", (req, res) => {
     const sql = "SELECT u.id AS user_id, a.*, c.course, a.name AS name FROM alumnus_bio a JOIN users u ON u.alumnus_id = a.id LEFT JOIN courses c ON c.id = a.course_id ORDER BY a.name ASC";
     con.query(sql, (err, result) => {
@@ -698,66 +688,92 @@ router.get("/alumni_list", (req, res) => {
 
 router.put('/upaccount', avatarUpload.single('image'), async (req, res) => {
     try {
-        // const avatar = req.file.path ;
+        const {
+            name, connected_to, course_id, email, gender, batch,
+            password, alumnus_id, user_id,
+            dob, contact_number, email_optional,
+            current_address, current_district_taluka, village_name,
+            taluka, other_taluka, district, region, other_district,
+            state, hostel, year_of_joining_vss, education_details,
+            special_achievement, social_work, associated_with_samiti,
+            form_of_association, contribution_areas, reflection_on_samiti,
+            additional_comments
+        } = req.body;
 
-        const { name, connected_to, course_id, email, gender, batch, password, alumnus_id, user_id } = req.body;
         let hashedPassword = null;
         if (password) {
             hashedPassword = await bcrypt.hash(password, 10);
         }
-        // Update alumnus_bio table
-        const asql = 'UPDATE alumnus_bio SET name = ?, connected_to = ?, course_id = ?, email = ?, gender = ?, batch = ? WHERE id = ?';
-        const avalues = [name, connected_to, course_id, email, gender, batch, alumnus_id];
+
+        // Update alumnus_bio table with all fields
+        const asql = `
+            UPDATE alumnus_bio SET 
+                name = ?, connected_to = ?, course_id = ?, email = ?, gender = ?, batch = ?,
+                dob = ?, contact_number = ?, email_optional = ?, current_address = ?, 
+                current_district_taluka = ?, village_name = ?, taluka = ?, other_taluka = ?, 
+                district = ?, region = ?, other_district = ?, state = ?, hostel = ?, 
+                year_of_joining_vss = ?, education_details = ?, special_achievement = ?, 
+                social_work = ?, associated_with_samiti = ?, form_of_association = ?, 
+                contribution_areas = ?, reflection_on_samiti = ?, additional_comments = ?
+            WHERE id = ?
+        `;
+
+        const avalues = [
+            name, connected_to, course_id, email, gender, batch,
+            dob, contact_number, email_optional, current_address,
+            current_district_taluka, village_name, taluka, other_taluka,
+            district, region, other_district, state, hostel,
+            year_of_joining_vss, education_details, special_achievement,
+            social_work, associated_with_samiti,form_of_association,
+            contribution_areas, reflection_on_samiti, additional_comments,
+            alumnus_id
+        ];
+
         con.query(asql, avalues, (err, result) => {
             if (err) {
                 console.error('Error updating alumnus_bio:', err);
-                res.status(500).json({ error: 'An error occurred' });
-                return;
+                return res.status(500).json({ error: 'Error updating alumnus_bio' });
             }
 
-            // avatr
+            // Update avatar if image uploaded
             if (req.file) {
                 const avsql = 'UPDATE alumnus_bio SET avatar = ? WHERE id = ?';
                 const avvalues = [req.file.path, alumnus_id];
-                con.query(avsql, avvalues, (err, result) => {
+                con.query(avsql, avvalues, (err) => {
                     if (err) {
-                        console.error('Error updating pic:', err);
-                        // res.status(500).json({ error: 'pic error occurred' });
-                        return;
+                        console.error('Error updating avatar:', err);
+                        // Not critical; continue
                     }
-                    // res.json({ message: 'pic updated successfully' });
                 });
             }
 
             // Update users table
             const usql = 'UPDATE users SET name = ?, email = ? WHERE id = ?';
             const uvalues = [name, email, user_id];
-            con.query(usql, uvalues, (err, result) => {
+            con.query(usql, uvalues, (err) => {
                 if (err) {
                     console.error('Error updating users:', err);
-                    res.status(500).json({ error: 'An error occurred' });
-                    return;
+                    return res.status(500).json({ error: 'Error updating users' });
                 }
-                // Update password in users table
+
                 if (hashedPassword) {
                     const psql = 'UPDATE users SET password = ? WHERE id = ?';
                     const pvalues = [hashedPassword, user_id];
-                    con.query(psql, pvalues, (err, result) => {
+                    con.query(psql, pvalues, (err) => {
                         if (err) {
                             console.error('Error updating password:', err);
-                            res.status(500).json({ error: 'An error occurred' });
-                            return;
+                            return res.status(500).json({ error: 'Error updating password' });
                         }
-                        res.json({ message: 'Account updated successfully' });
+                        return res.json({ message: 'Account updated successfully' });
                     });
                 } else {
-                    res.json({ message: 'Account updated successfully' });
+                    return res.json({ message: 'Account updated successfully' });
                 }
             });
         });
     } catch (error) {
-        console.error('Error updating account:', error);
-        res.status(500).json({ error: 'An error occurred' });
+        console.error('Exception in /upaccount:', error);
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
@@ -933,6 +949,102 @@ router.post('/connection/respond', (req, res) => {
   
       res.status(200).json({ connections: results });
     });
+  }); 
+  // POST: Send message
+router.post('/messages/send', async (req, res) => {
+    const { sender_id, receiver_id, message_text } = req.body;
+    if (!sender_id || !receiver_id || !message_text) {
+      return res.status(400).json({ error: 'Missing fields' });
+    }
+  
+    const sql = `INSERT INTO messages (sender_id, receiver_id, message_text) VALUES (?, ?, ?)`;
+    con.query(sql, [sender_id, receiver_id, message_text], (err, result) => {
+      if (err) {
+        console.error("Error sending message:", err);
+        return res.status(500).json({ error: 'Database error' });
+      }
+      res.json({ message: 'Message sent successfully', messageId: result.insertId });
+    });
+  });
+
+  // GET: Get all messages between two users
+router.get('/messages', async (req, res) => {
+    const { sender_id, receiver_id } = req.query;
+    if (!sender_id || !receiver_id) {
+      return res.status(400).json({ error: 'Missing query parameters' });
+    }
+  
+    const sql = `
+      SELECT * FROM messages 
+      WHERE 
+        (sender_id = ? AND receiver_id = ?) OR 
+        (sender_id = ? AND receiver_id = ?)
+      ORDER BY created_at ASC`;
+  
+    con.query(sql, [sender_id, receiver_id, receiver_id, sender_id], (err, results) => {
+      if (err) {
+        console.error("Error fetching messages:", err);
+        return res.status(500).json({ error: 'Database error' });
+      }
+      res.json({ messages: results });
+    });
+  }); 
+  
+  router.get('/messages/unread/count', async (req, res) => {
+    try {
+      const { receiver_id } = req.query;
+      
+      // SQL query to count unread messages grouped by sender
+      const query = `
+        SELECT sender_id, COUNT(*) as count 
+        FROM messages 
+        WHERE receiver_id = ? AND read_status = 'unread' 
+        GROUP BY sender_id
+      `;
+      
+      con.query(query, [receiver_id], (err, results) => {
+        if (err) {
+          console.error("Database error:", err);
+          return res.status(500).json({ error: "Database error" });
+        }
+        
+        res.json({ counts: results });
+      });
+    } catch (error) {
+      console.error("Server error:", error);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+  
+  // 2. Mark messages as read
+  // PUT /auth/messages/read
+  router.put('/messages/read', async (req, res) => {
+    try {
+      const { sender_id, receiver_id } = req.body;
+      
+      // SQL query to update read status
+      const query = `
+        UPDATE messages 
+        SET read_status = 'read' 
+        WHERE sender_id = ? AND receiver_id = ? AND read_status = 'unread'
+      `;
+      
+      con.query(query, [sender_id, receiver_id], (err, results) => {
+        if (err) {
+          console.error("Database error:", err);
+          return res.status(500).json({ error: "Database error" });
+        }
+        
+        res.json({ 
+          success: true, 
+          message: "Messages marked as read",
+          updated: results.affectedRows 
+        });
+      });
+    } catch (error) {
+      console.error("Server error:", error);
+      res.status(500).json({ error: "Server error" });
+    }
   });
   
   
