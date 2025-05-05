@@ -173,7 +173,7 @@ const AlumniList = () => {
 
                                     {/* Alumni details */}
                                     <div>
-                                        <p className="card-text"><strong>Email:</strong> {a.email}</p>
+                                        {/* <p className="card-text"><strong>Email:</strong> {a.email}</p> */}
                                         {a.course && <p className="card-text"><strong>Course:</strong> {a.course}</p>}
                                         {a.batch !== "0000" && <p className="card-text"><strong>Batch:</strong> {a.batch}</p>}
                                         {a.connected_to && <p className="card-text"><strong>Currently working in/as:</strong> {a.connected_to}</p>}
@@ -224,7 +224,7 @@ const AlumniList = () => {
 
                             <div className="modal-body" style={{ padding: '20px' }}>
                                 <div>
-                                    <p><strong>Email:</strong> {selectedAlumni.email}</p>
+                                    {/* <p><strong>Email:</strong> {selectedAlumni.email}</p> */}
                                     {selectedAlumni.course && <p><strong>Course:</strong> {selectedAlumni.course}</p>}
                                     {selectedAlumni.batch !== "0000" && <p><strong>Batch:</strong> {selectedAlumni.batch}</p>}
                                     {selectedAlumni.connected_to && <p><strong>Currently working in/as:</strong> {selectedAlumni.connected_to}</p>}

@@ -14,24 +14,23 @@ import {
   IconButton,
   InputAdornment,
   Paper,
-  Badge
+  Badge,
+  Menu,
+  MenuItem,
+  Snackbar,
+  Alert
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import SendIcon from "@mui/icons-material/Send";
-import VideocamIcon from "@mui/icons-material/Videocam";
-import MicIcon from "@mui/icons-material/Mic";
-import MicOffIcon from "@mui/icons-material/MicOff";
-import VideocamOffIcon from "@mui/icons-material/VideocamOff";
-import CallEndIcon from "@mui/icons-material/CallEnd";
 import MarkChatReadIcon from '@mui/icons-material/MarkChatRead';
 import CircleIcon from '@mui/icons-material/Circle';
-
-// Assets
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 import avatarImage from "../assets/uploads/gallery/avtar.png";
 import crossIcon from '../assets/cross_icon.png';
 import checkTick from '../assets/check_tick.png';
 import myChatIcon from '../assets/mychat.png';
-import myVideoCallIcon from '../assets/myvdocall.png';
 
 import { baseUrl } from '../utils/globalurl';
 
@@ -39,15 +38,37 @@ const MyNetwork = () => {
   const [invitations, setInvitations] = useState([]);
   const [acceptedConnections, setAcceptedConnections] = useState([]);
   const [chatOpen, setChatOpen] = useState(false);
-  const [videoCallOpen, setVideoCallOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [message, setMessage] = useState("");
   const [chatMessages, setChatMessages] = useState([]);
-  const [videoEnabled, setVideoEnabled] = useState(true);
-  const [audioEnabled, setAudioEnabled] = useState(true);
   const [unreadCounts, setUnreadCounts] = useState({});
+  const [menuAnchorEl, setMenuAnchorEl] = useState(null);
+  const [selectedMessage, setSelectedMessage] = useState(null);
+  
+  // Edit message state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editMessageId, setEditMessageId] = useState(null);
+  
+  // Deleted messages state
+  const [deletedMessages, setDeletedMessages] = useState({
+    forMe: [],
+    forEveryone: []
+  });
+  
+  // Snackbar state for notifications
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "success"
+  });
+  
+  // Message menu position
+  const [menuPosition, setMenuPosition] = useState({
+    left: 0,
+    top: 0
+  });
+  
   const messagesEndRef = useRef(null);
-
   const userId = localStorage.getItem("user_id");
 
   useEffect(() => {
@@ -92,7 +113,7 @@ const MyNetwork = () => {
       const res = await axios.get(`${baseUrl}auth/connection`, {
         params: { user_id: userId }
       });
-      setAcceptedConnections(res.data.connections || []);
+      setAcceptedConnections(res.data.connections || []); 
     } catch (error) {
       console.error("Error fetching accepted connections:", error);
     }
@@ -147,21 +168,28 @@ const MyNetwork = () => {
           receiver_id: receiverId
         }
       });
-      setChatMessages(res.data.messages || []);
+      
+      // Filter out messages that are deleted for the current user
+      const filteredMessages = res.data.messages.filter(msg => {
+        const isDeletedForCurrentUser = 
+          (msg.sender_id === userId && msg.deleted_for_sender === 1) ||
+          (msg.receiver_id === userId && msg.deleted_for_receiver === 1);
+        
+        // Update the deletedMessages state for UI representation
+        if (isDeletedForCurrentUser) {
+          setDeletedMessages(prev => ({
+            ...prev,
+            forMe: [...prev.forMe, msg.id]
+          }));
+        }
+        
+        return !isDeletedForCurrentUser;
+      });
+      
+      setChatMessages(filteredMessages || []);
     } catch (err) {
       console.error("Failed to load messages:", err);
     }
-  };
-
-  const handleOpenChat = async (user) => {
-    setSelectedUser(user);
-    setChatOpen(true);
-
-    // Fetch messages
-    await fetchMessages(user.user_id);
-    
-    // Mark all messages from this user as read
-    markMessagesAsRead(user.user_id);
   };
 
   const markMessagesAsRead = async (senderId) => {
@@ -176,12 +204,39 @@ const MyNetwork = () => {
         ...prev,
         [senderId]: 0
       }));
+      
+      // Update read status in chatMessages
+      setChatMessages(prev => 
+        prev.map(msg => 
+          msg.sender_id === senderId ? { ...msg, read_status: 'read' } : msg
+        )
+      );
     } catch (err) {
       console.error("Failed to mark messages as read:", err);
     }
   };
 
+  const handleOpenChat = async (user) => {
+    setSelectedUser(user);
+    setChatOpen(true);
+    
+    // Cancel any ongoing edit if switching chats
+    if (isEditing) {
+      handleCancelEdit();
+    }
+    
+    // Fetch messages
+    await fetchMessages(user.user_id);
+    
+    // Mark all messages from this user as read
+    markMessagesAsRead(user.user_id);
+  };
+
   const handleCloseChat = () => {
+    // Cancel any ongoing edit before closing chat
+    if (isEditing) {
+      handleCancelEdit();
+    }
     setChatOpen(false);
     setChatMessages([]);
     setMessage("");
@@ -189,24 +244,36 @@ const MyNetwork = () => {
 
   const handleSendMessage = async () => {
     if (message.trim()) {
-      const newMessage = {
-        sender_id: userId,
-        receiver_id: selectedUser.user_id,
-        message_text: message
-      };
-
-      try {
-        await axios.post(`${baseUrl}auth/messages/send`, newMessage);
-        setChatMessages(prev => [...prev, {
+      // Check if we're editing a message or sending a new one
+      if (isEditing && editMessageId) {
+        await handleSaveEdit();
+      } else {
+        // Send a new message
+        const newMessage = {
           sender_id: userId,
           receiver_id: selectedUser.user_id,
-          message_text: message,
-          created_at: new Date().toISOString(),
-          read_status: 'unread'
-        }]);
-        setMessage("");
-      } catch (err) {
-        console.error("Error sending message:", err);
+          message_text: message
+        };
+
+        try {
+          const response = await axios.post(`${baseUrl}auth/messages/send`, newMessage);
+          const sentMessageWithId = {
+            ...newMessage,
+            id: response.data.messageId,
+            created_at: new Date().toISOString(),
+            read_status: 'unread'
+          }; 
+          
+          setChatMessages(prev => [...prev, sentMessageWithId]);
+          setMessage("");
+        } catch (err) {
+          console.error("Error sending message:", err);
+          setSnackbar({
+            open: true,
+            message: "Failed to send message",
+            severity: "error"
+          });
+        }
       }
     }
   };
@@ -218,24 +285,187 @@ const MyNetwork = () => {
     }
   };
 
-  // Video call related
-  const handleOpenVideoCall = (user) => {
-    setSelectedUser(user);
-    setVideoCallOpen(true);
-    setVideoEnabled(true);
-    setAudioEnabled(true);
+  // Message options menu handlers - FIXED TO USE POSITION INSTEAD OF ANCHOR
+  const handleOpenMessageMenu = (event, message) => {
+    // Allow opening menu for any message sent by the current user
+    if (String(message.sender_id) === String(userId)) {
+      // Store the mouse position instead of the element reference
+      setMenuPosition({
+        left: event.clientX,
+        top: event.clientY
+      });
+      setSelectedMessage(message);
+      setMenuAnchorEl({ current: event.currentTarget });
+    }
   };
 
-  const handleCloseVideoCall = () => {
-    setVideoCallOpen(false);
+  const handleCloseMessageMenu = () => {
+    setMenuAnchorEl(null);
+    setSelectedMessage(null);
   };
 
-  const toggleVideo = () => {
-    setVideoEnabled(!videoEnabled);
+  const handleEditMessage = () => {
+    if (!selectedMessage) return;
+    
+    // Start editing mode and move message text to input field
+    setIsEditing(true);
+    setEditMessageId(selectedMessage.id);
+    setMessage(selectedMessage.message_text);
+    handleCloseMessageMenu();
+  };
+  
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditMessageId(null);
+    setMessage("");
+  };
+  
+  const handleSaveEdit = async () => {
+    if (!editMessageId || !message.trim()) return;
+    
+    try {
+      await axios.put(`${baseUrl}auth/messages/edit`, {
+        message_id: editMessageId,
+        message_text: message
+      });
+      
+      // Update the message in the UI
+      setChatMessages(prevMessages => 
+        prevMessages.map(msg => 
+          msg.id === editMessageId 
+            ? { ...msg, message_text: message, edited: true } 
+            : msg
+        )
+      );
+      
+      setSnackbar({
+        open: true,
+        message: "Message updated successfully",
+        severity: "success"
+      });
+    } catch (err) {
+      console.error("Error editing message:", err);
+      
+      // Show appropriate error message
+      let errorMessage = "Failed to edit the message";
+      if (err.response) {
+        if (err.response.status === 403) {
+          errorMessage = "Cannot edit message that has already been read";
+        } else if (err.response.status === 404) {
+          errorMessage = "Message not found";
+        }
+      }
+      
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: "error"
+      });
+      return; // Return early without clearing edit state on failure
+    } 
+    
+    // Reset edit state only on success
+    setIsEditing(false);
+    setEditMessageId(null);
+    setMessage("");
   };
 
-  const toggleAudio = () => {
-    setAudioEnabled(!audioEnabled);
+  const handleDeleteForMe = async () => {
+    if (!selectedMessage || !userId) return;
+    
+    try {
+      await axios.post(`${baseUrl}auth/messages/delete`, {
+        message_id: selectedMessage.id,
+        user_id: userId,
+        delete_for: 'me'
+      });
+  
+      // DO NOT remove message from UI, just mark it as deleted for current user
+      setDeletedMessages(prev => ({
+        ...prev,
+        forMe: [...prev.forMe, selectedMessage.id]
+      }));
+  
+      setSnackbar({
+        open: true,
+        message: "Message deleted for you",
+        severity: "success"
+      });
+  
+      handleCloseMessageMenu();
+    } catch (error) {
+      console.error('Error deleting message for me:', error);
+  
+      setSnackbar({
+        open: true,
+        message: "Failed to delete message",
+        severity: "error"
+      });
+    }
+  };
+  
+  // Handle message deletion for all users
+  const handleDeleteForEveryone = async () => {
+    if (!selectedMessage || !userId) return;
+    
+    // Check if the current user is the sender
+    if (String(selectedMessage.sender_id) !== String(userId)) {
+      setSnackbar({
+        open: true,
+        message: "Only the sender can delete a message for everyone",
+        severity: "error"
+      });
+      handleCloseMessageMenu();
+      return;
+    }
+    
+    // Check if the message has been read
+    if (selectedMessage.read_status === 'read') {
+      setSnackbar({
+        open: true,
+        message: "Cannot delete messages that have been read",
+        severity: "error"
+      });
+      handleCloseMessageMenu();
+      return;
+    }
+    
+    try {
+      await axios.post(`${baseUrl}auth/messages/delete`, {
+        message_id: selectedMessage.id,
+        user_id: userId,
+        delete_for: 'everyone'
+      });
+      
+      // Update local state to mark message as deleted for everyone
+      setDeletedMessages(prev => ({
+        ...prev,
+        forEveryone: [...prev.forEveryone, selectedMessage.id]
+      }));
+      
+      setSnackbar({
+        open: true,
+        message: "Message deleted for everyone",
+        severity: "success"
+      });
+      
+      handleCloseMessageMenu();
+    } catch (error) {
+      console.error('Error deleting message for everyone:', error);
+      
+      setSnackbar({
+        open: true,
+        message: "Failed to delete message for everyone",
+        severity: "error"
+      });
+    }
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar({
+      ...snackbar,
+      open: false
+    });
   };
 
   return (
@@ -359,14 +589,19 @@ const MyNetwork = () => {
                   />
                 </Box>
                 <CardContent>
-                  <Typography variant="h6" fontWeight="600">
+                  <Typography variant="h6" fontWeight="600" align="center">
                     {connection.user_name}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {connection.email}
-                  </Typography>
 
-                  <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3, mt: 2 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 1 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      <strong>Course:</strong> {connection.course}  <br />
+                      <strong>Currently Working:</strong> {connection.connected_to} <br />
+                      <strong>Batch:</strong> {connection.batch}
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
                     <Badge 
                       badgeContent={unreadCounts[connection.user_id] || 0} 
                       color="error"
@@ -380,13 +615,6 @@ const MyNetwork = () => {
                         onClick={() => handleOpenChat(connection)}
                       />
                     </Badge>
-                    <Box
-                      component="img"
-                      src={myVideoCallIcon}
-                      alt="Video Call"
-                      sx={{ width: 38, height: 38, cursor: 'pointer' }}
-                      onClick={() => handleOpenVideoCall(connection)}
-                    />
                   </Box>
                 </CardContent>
               </Card>
@@ -460,53 +688,101 @@ const MyNetwork = () => {
             flexDirection: "column" 
           }}>
             {chatMessages.map((msg, index) => {
-              // Determine if message is from current user
               const isCurrentUser = String(msg.sender_id) === String(userId);
-              
+              const isDeletedForSender = msg.deleted_for_sender === 1;
+              const isDeletedForReceiver = msg.deleted_for_receiver === 1;
+              const isDeletedForEveryone = isDeletedForSender && isDeletedForReceiver;
+              const isDeletedForMe = isCurrentUser ? isDeletedForSender : isDeletedForReceiver;
+              const isBeingEdited = isEditing && editMessageId === msg.id;
+
+              let displayText = msg.message_text;
+              if (isDeletedForEveryone) {
+                displayText = "Message deleted for everyone";
+              } else if (isDeletedForMe) {
+                displayText = isCurrentUser ? "You deleted this message" : "This message was deleted";
+              }
+
               return (
-                <Box 
+                <Box
                   key={`msg-${index}-${msg.created_at || Date.now()}`}
-                  sx={{ 
+                  sx={{
                     alignSelf: isCurrentUser ? "flex-end" : "flex-start",
                     mb: 1.5,
                     maxWidth: "75%",
-                    position: "relative"
+                    position: "relative",
                   }}
                 >
-                  <Paper 
-                    elevation={1} 
-                    sx={{ 
-                      p: 1.5, 
-                      borderRadius: 2, 
-                      bgcolor: isCurrentUser ? "#1976d2" : "#fff",
-                      color: isCurrentUser ? "#fff" : "inherit",
-                      boxShadow: "0 1px 2px rgba(0,0,0,0.1)"
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      flexDirection: isCurrentUser ? "row" : "row-reverse",
                     }}
                   >
-                    <Typography variant="body1">
-                      {msg.message_text}
-                    </Typography>
-                  </Paper>
-                  <Box sx={{ 
-                    display: "flex", 
-                    alignItems: "center", 
-                    justifyContent: isCurrentUser ? "flex-end" : "flex-start",
-                    mt: 0.5, 
-                    px: 1 
-                  }}>
-                    <Typography 
-                      variant="caption" 
-                      color="text.secondary" 
+                    {/* Show menu only if message is not deleted for me or for everyone */}
+                    {isCurrentUser && !isDeletedForMe && !isDeletedForEveryone && (
+                      <IconButton
+                        size="small"
+                        sx={{
+                          ml: isCurrentUser ? 1 : 0,
+                          mr: isCurrentUser ? 0 : 1,
+                          p: 0.5,
+                          color: "text.secondary",
+                        }}
+                        onClick={(e) => handleOpenMessageMenu(e, msg)}
+                      >
+                        <MoreVertIcon fontSize="small" />
+                      </IconButton>
+                    )}
+
+                    <Box
+                      sx={{
+                        p: 1.5,
+                        borderRadius: 2,
+                        backgroundColor:
+                          isDeletedForMe || isDeletedForEveryone
+                            ? "#f1f1f1"
+                            : isCurrentUser
+                            ? "#1976d2"
+                            : "#f5f5f5",
+                        color:
+                          isDeletedForMe || isDeletedForEveryone
+                            ? "#757575"
+                            : isCurrentUser
+                            ? "#fff"
+                            : "#000",
+                        fontStyle: isDeletedForMe || isDeletedForEveryone ? "italic" : "normal",
+                        border: isBeingEdited ? "2px solid #ffc107" : "none",
+                      }}
                     >
-                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      <Typography variant="body1">{displayText}</Typography>
+                    </Box>
+                  </Box>
+
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: isCurrentUser ? "flex-end" : "flex-start",
+                      mt: 0.5,
+                      px: 1,
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary">
+                      {new Date(msg.created_at).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                      {msg.is_edited === 1 && !isDeletedForMe && !isDeletedForEveryone && " (edited)"}
                     </Typography>
-                    
-                    {isCurrentUser && (
+
+                    {/* Show read icon only if message is not deleted for the sender */}
+                    {isCurrentUser && !isDeletedForMe && !isDeletedForEveryone && (
                       <Box sx={{ display: "flex", alignItems: "center", ml: 1 }}>
-                        {msg.read_status === 'read' ? (
-                          <MarkChatReadIcon sx={{ fontSize: 14, color: '#4caf50' }} />
+                        {msg.read_status === "read" ? (
+                          <MarkChatReadIcon sx={{ fontSize: 14, color: "#4caf50" }} />
                         ) : (
-                          <CircleIcon sx={{ fontSize: 8, color: '#9e9e9e' }} />
+                          <CircleIcon sx={{ fontSize: 8, color: "#9e9e9e" }} />
                         )}
                       </Box>
                     )}
@@ -525,7 +801,7 @@ const MyNetwork = () => {
           }}>
             <TextField
               fullWidth
-              placeholder="Type a message..."
+              placeholder={isEditing ? "Edit message..." : "Type a message..."}
               variant="outlined"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
@@ -533,8 +809,35 @@ const MyNetwork = () => {
               size="small"
               autoComplete="off"
               InputProps={{
+                startAdornment: isEditing && (
+                  <InputAdornment position="start">
+                    <Box sx={{ 
+                      bgcolor: "#ffc107", 
+                      color: "white", 
+                      px: 1, 
+                      py: 0.5, 
+                      borderRadius: 1, 
+                      fontSize: "0.75rem",
+                      display: "flex",
+                      alignItems: "center",
+                      mr: 1
+                    }}>
+                      <EditIcon fontSize="small" sx={{ mr: 0.5, fontSize: "0.875rem" }} />
+                      Editing
+                    </Box>
+                  </InputAdornment>
+                ),
                 endAdornment: (
                   <InputAdornment position="end">
+                    {isEditing && (
+                      <IconButton 
+                        size="small"
+                        onClick={handleCancelEdit}
+                        sx={{ mr: 0.5 }}
+                      >
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    )}
                     <IconButton 
                       color="primary" 
                       onClick={handleSendMessage}
@@ -545,190 +848,67 @@ const MyNetwork = () => {
                   </InputAdornment>
                 )
               }}
-              sx={{ "& .MuiOutlinedInput-root": { borderRadius: "20px" } }}
+              sx={{ 
+                "& .MuiOutlinedInput-root": { 
+                  borderRadius: "20px",
+                  ...(isEditing && { 
+                    borderColor: "#ffc107", 
+                    "&.Mui-focused": { 
+                      borderColor: "#ffc107", 
+                      boxShadow: "0 0 0 2px rgba(255, 193, 7, 0.2)" 
+                    }
+                  })
+                } 
+              }}
             />
           </Box>
         </Box>
       </Dialog>
 
-      {/* Video Call Dialog */}
-      <Dialog 
-        open={videoCallOpen} 
-        onClose={handleCloseVideoCall}
-        fullScreen
-        PaperProps={{
-          sx: {
-            bgcolor: "#121212",
-            animation: "fadeIn 0.3s ease-out",
-            "@keyframes fadeIn": {
-              "0%": {
-                opacity: 0,
-              },
-              "100%": {
-                opacity: 1,
-              }
-            }
-          }
-        }}
+      {/* Message Options Menu - FIXED TO USE POSITION INSTEAD OF ANCHOR */}
+      <Menu
+        open={Boolean(menuAnchorEl)}
+        onClose={handleCloseMessageMenu}
+        anchorReference="anchorPosition"
+        anchorPosition={
+          menuAnchorEl ? { top: menuPosition.top, left: menuPosition.left } : undefined
+        }
       >
-        <Box sx={{ 
-          height: "100%", 
-          width: "100%", 
-          display: "flex", 
-          flexDirection: "column", 
-          position: "relative" 
-        }}>
-          {/* Video Display Area */}
-          <Box sx={{ 
-            flexGrow: 1, 
-            display: "flex", 
-            flexDirection: { xs: "column", md: "row" },
-            p: 2,
-            gap: 2
-          }}>
-            {/* Main Video (Other User) */}
-            <Box sx={{ 
-              flex: 2,
-              bgcolor: "#282828",
-              borderRadius: 2,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              position: "relative",
-              overflow: "hidden"
-            }}>
-              {videoEnabled ? (
-                <Box sx={{ 
-                  width: "100%", 
-                  height: "100%", 
-                  display: "flex", 
-                  alignItems: "center", 
-                  justifyContent: "center" 
-                }}>
-                  <Avatar 
-                    src={avatarImage} 
-                    alt={selectedUser?.user_name || "User"} 
-                    sx={{ 
-                      width: { xs: 120, md: 160 }, 
-                      height: { xs: 120, md: 160 }
-                    }}
-                  />
-                  <Typography 
-                    variant="h6" 
-                    color="white" 
-                    sx={{ 
-                      position: "absolute", 
-                      bottom: 20, 
-                      left: 20 
-                    }}
-                  >
-                    {selectedUser?.user_name || "User"}
-                  </Typography>
-                </Box>
-              ) : (
-                <Box sx={{ 
-                  width: "100%", 
-                  height: "100%", 
-                  display: "flex", 
-                  flexDirection: "column", 
-                  alignItems: "center", 
-                  justifyContent: "center" 
-                }}>
-                  <VideocamOffIcon sx={{ fontSize: 64, color: "#757575", mb: 2 }} />
-                  <Typography variant="h6" color="#757575">
-                    Video is turned off
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-
-            {/* Self Video (Picture-in-Picture) */}
-            <Box sx={{ 
-              position: { xs: "relative", md: "absolute" },
-              width: { xs: "100%", md: "250px" },
-              height: { xs: "200px", md: "180px" },
-              bottom: { md: 130 },
-              right: { md: 20 },
-              bgcolor: "#282828",
-              borderRadius: 2,
-              zIndex: 100,
-              overflow: "hidden",
-              border: "2px solid #424242"
-            }}>
-              {videoEnabled ? (
-                <Box sx={{ 
-                  height: "100%", 
-                  display: "flex", 
-                  alignItems: "center", 
-                  justifyContent: "center" 
-                }}>
-                  <Avatar sx={{ width: 80, height: 80 }} />
-                  <Typography variant="body2" color="white" sx={{ position: "absolute", bottom: 10, left: 10 }}>
-                    You
-                  </Typography>
-                </Box>
-              ) : (
-                <Box sx={{ 
-                  height: "100%", 
-                  display: "flex", 
-                  flexDirection: "column", 
-                  alignItems: "center", 
-                  justifyContent: "center" 
-                }}>
-                  <VideocamOffIcon sx={{ color: "#757575", mb: 1 }} />
-                  <Typography variant="body2" color="#757575">
-                    Your camera is off
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-          </Box>
-
-          {/* Controls */}
-          <Box sx={{ 
-            p: 3, 
-            display: "flex", 
-            justifyContent: "center", 
-            gap: 4
-          }}>
-            <IconButton 
-              onClick={toggleAudio} 
-              sx={{ 
-                bgcolor: audioEnabled ? "rgba(255,255,255,0.1)" : "rgba(255,0,0,0.2)", 
-                color: "white",
-                p: 2,
-                "&:hover": { bgcolor: audioEnabled ? "rgba(255,255,255,0.2)" : "rgba(255,0,0,0.3)" }
-              }}
-            >
-              {audioEnabled ? <MicIcon fontSize="large" /> : <MicOffIcon fontSize="large" />}
-            </IconButton>
-            <IconButton 
-              onClick={toggleVideo} 
-              sx={{ 
-                bgcolor: videoEnabled ? "rgba(255,255,255,0.1)" : "rgba(255,0,0,0.2)", 
-                color: "white",
-                p: 2,
-                "&:hover": { bgcolor: videoEnabled ? "rgba(255,255,255,0.2)" : "rgba(255,0,0,0.3)" }
-              }}
-            >
-              {videoEnabled ? <VideocamIcon fontSize="large" /> : <VideocamOffIcon fontSize="large" />}
-            </IconButton>
-            
-            <IconButton 
-              onClick={handleCloseVideoCall} 
-              sx={{ 
-                bgcolor: "rgba(255,0,0,0.7)", 
-                color: "white",
-                p: 2,
-                "&:hover": { bgcolor: "rgba(255,0,0,0.9)" }
-              }}
-            >
-              <CallEndIcon fontSize="large" />
-            </IconButton>
-          </Box>
-        </Box>
-      </Dialog>
+        {/* Only show Edit and Delete for everyone if message is unread */}
+        {selectedMessage && selectedMessage.read_status === 'unread' && (
+          <>
+            <MenuItem onClick={handleEditMessage}>
+              <EditIcon fontSize="small" sx={{ mr: 1 }} />
+              Edit
+            </MenuItem>
+            <MenuItem onClick={handleDeleteForEveryone} sx={{ color: 'error.main' }}>
+              <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
+              Delete for everyone
+            </MenuItem>
+          </>
+        )}
+        <MenuItem onClick={handleDeleteForMe} sx={{ color: 'error.main' }}>
+          <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
+          Delete for me
+        </MenuItem>
+      </Menu>
+    <Snackbar 
+      open={snackbar.open} 
+      autoHideDuration={5000} 
+      onClose={handleCloseSnackbar}
+      anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+    >
+      <Alert 
+        onClose={handleCloseSnackbar} 
+        severity={snackbar.severity} 
+        variant="filled"
+        sx={{ width: '100%' }}
+      >
+        {snackbar.message}
+      </Alert>
+    </Snackbar>
     </>
   );
 };
+
 export default MyNetwork;

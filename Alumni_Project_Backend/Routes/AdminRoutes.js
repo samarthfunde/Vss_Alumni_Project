@@ -4,12 +4,23 @@ import jwt from "jsonwebtoken";
 import multer from "multer";
 import path from "path";
 // import bcrypt from "bcrypt"; 
-import bcrypt from 'bcryptjs';  
+import bcrypt from 'bcryptjs';   
+import { check, validationResult } from 'express-validator'; 
 
 
 import sendEmail from "../utils/mailer.js";
 
 const router = express.Router();
+
+const queryAsync = (sql, values) => {
+    return new Promise((resolve, reject) => {
+      con.query(sql, values, (err, results) => {
+        if (err) reject(err);
+        else resolve(results);
+      });
+    });
+  };
+  
 
 
 const avatarStorage = multer.diskStorage({
@@ -930,7 +941,8 @@ router.post('/connection/respond', (req, res) => {
         u.name AS user_name,
         u.email,
         ab.batch,
-        c.course
+        c.course, 
+        ab.connected_to
       FROM connections con
       JOIN users u ON 
         (u.id = con.sender_id AND con.receiver_id = ?) OR 
@@ -968,18 +980,31 @@ router.post('/messages/send', async (req, res) => {
   });
 
   // GET: Get all messages between two users
-router.get('/messages', async (req, res) => {
+  router.get('/messages', async (req, res) => {
     const { sender_id, receiver_id } = req.query;
+  
     if (!sender_id || !receiver_id) {
       return res.status(400).json({ error: 'Missing query parameters' });
     }
   
     const sql = `
-      SELECT * FROM messages 
+      SELECT 
+        id,
+        sender_id,
+        receiver_id,
+        message_text,
+        created_at,
+        read_status,
+        deleted_for_sender,
+        deleted_for_receiver,
+        is_edited
+      FROM messages 
       WHERE 
-        (sender_id = ? AND receiver_id = ?) OR 
         (sender_id = ? AND receiver_id = ?)
-      ORDER BY created_at ASC`;
+        OR 
+        (sender_id = ? AND receiver_id = ?)
+      ORDER BY created_at ASC
+    `;
   
     con.query(sql, [sender_id, receiver_id, receiver_id, sender_id], (err, results) => {
       if (err) {
@@ -988,7 +1013,8 @@ router.get('/messages', async (req, res) => {
       }
       res.json({ messages: results });
     });
-  }); 
+  });
+  
   
   router.get('/messages/unread/count', async (req, res) => {
     try {
@@ -1048,8 +1074,89 @@ router.get('/messages', async (req, res) => {
   });
   
   
+
+  router.post('/messages/delete', async (req, res) => {
+  const { message_id, user_id, delete_for, is_edited } = req.body;
+  const userIdInt = parseInt(user_id);
   
+  console.log('Delete message request:', req.body);
+
+  if (!message_id || !user_id || !delete_for || isNaN(userIdInt)) {
+    return res.status(400).json({ error: 'Missing or invalid required fields' });
+  }
+
+  try {
+    const [rows] = await con.promise().query('SELECT * FROM messages WHERE id = ?', [message_id]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    const message = rows[0];
+
+    if (delete_for === 'me') {
+      if (message.sender_id === userIdInt) {
+        // Mark message as deleted for the sender (do not delete the row)
+        await con.promise().query('UPDATE messages SET deleted_for_sender = 1 WHERE id = ?', [message_id]);
+        return res.status(200).json({ message: 'Message deleted for sender' });
+      } else if (message.receiver_id === userIdInt) {
+        // Mark message as deleted for the receiver (do not delete the row)
+        await con.promise().query('UPDATE messages SET deleted_for_receiver = 1 WHERE id = ?', [message_id]);
+        return res.status(200).json({ message: 'Message deleted for receiver' });
+      } else {
+        return res.status(403).json({ error: 'User not authorized to delete this message' });
+      }
+    }
+
+    if (delete_for === 'everyone') {
+      if (message.sender_id !== userIdInt) {
+        return res.status(403).json({ error: 'Only sender can delete message for everyone' });
+      }
+
+      // Mark message as deleted for both sender and receiver (do not delete the row)
+      await con.promise().query('UPDATE messages SET deleted_for_sender = 1, deleted_for_receiver = 1 WHERE id = ?', [message_id]);
+      return res.status(200).json({ message: 'Message deleted for everyone' });
+    }
+
+    if (is_edited === true) {
+      // Mark message as edited (do not delete the row)
+      await con.promise().query('UPDATE messages SET is_edited = 1 WHERE id = ?', [message_id]);
+      return res.status(200).json({ message: 'Message marked as edited' });
+    }
+
+    return res.status(400).json({ error: 'Invalid delete_for value or edit operation' });
+
+  } catch (error) {
+    console.error('Delete message error:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+  // Edit message endpoint
+  router.put('/messages/edit', async (req, res) => {
+    const { message_id, message_text } = req.body;
+  
+    if (!message_id || !message_text) {
+      return res.status(400).json({ success: false, message: 'Missing message_id or message_text' });
+    }
+  
+    try {
+      const result = await queryAsync(
+        'UPDATE messages SET message_text = ?, is_edited = 1 WHERE id = ?',
+        [message_text, message_id]
+      );
+  
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ success: false, message: 'Message not found or already deleted' });
+      }
+  
+      res.json({ success: true, message: 'Message updated successfully' });
+    } catch (err) {
+      console.error('Error updating message:', err);
+      res.status(500).json({ success: false, message: 'Database error' });
+    }
+  });
 
 export { router as adminRouter } 
-
+    
 
