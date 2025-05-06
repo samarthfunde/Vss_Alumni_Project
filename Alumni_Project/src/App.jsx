@@ -94,6 +94,7 @@ function AppRouter() {
         
         <Route path="/forums" element={<Forum />}/>
         <Route path="/about" element={<About />} />
+        <Route path="/my network" element={<MyNetwork />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         {isLoggedIn && isAdmin && (

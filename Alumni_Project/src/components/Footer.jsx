@@ -20,7 +20,8 @@ const Footer = () => {
           <Link to="/jobs"><p>Jobs</p></Link>
           <Link to="/forums"><p>Forums</p></Link>
           <Link to="/about"><p>About</p></Link>
-          <Link to="/about"><p>My Network</p></Link>
+          <Link to="/my-network"><p>My Network</p></Link>
+
           {/* <a
     href="https://mvmsamiti.org/donation/"
     className="donate-button"

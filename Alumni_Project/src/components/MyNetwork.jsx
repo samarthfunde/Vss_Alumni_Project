@@ -102,7 +102,8 @@ const MyNetwork = () => {
       const res = await axios.get(`${baseUrl}auth/connection/requests`, {
         params: { receiver_id: userId }
       });
-      setInvitations(res.data.requests || []);
+      setInvitations(res.data.requests || []); 
+      console.log(res.data.requests);
     } catch (error) {
       console.error("Error fetching pending invitations:", error);
     }
@@ -112,7 +113,8 @@ const MyNetwork = () => {
     try {
       const res = await axios.get(`${baseUrl}auth/connection`, {
         params: { user_id: userId }
-      });
+      }); 
+      console.log(res.data.connections);
       setAcceptedConnections(res.data.connections || []); 
     } catch (error) {
       console.error("Error fetching accepted connections:", error);
@@ -516,8 +518,16 @@ const MyNetwork = () => {
                 gap: { xs: 2, sm: 0 },
               }}
             >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <Avatar src={avatarImage} alt="User" sx={{ width: 50, height: 50, mr: 2 }} />
+              <Box sx={{ display: "flex", alignItems: "center" }}> 
+              <Avatar 
+  src={
+    invite.avatar
+      ? `${baseUrl}${invite.avatar.replace(/\\/g, '/')}`
+      : avatarImage
+  }
+  alt="User"
+  sx={{ width: 50, height: 50, mr: 2 }}
+/>
                 <Box>
                   <Typography variant="subtitle1" fontWeight="600">
                     {invite.sender_name}
@@ -583,7 +593,11 @@ const MyNetwork = () => {
               >
                 <Box sx={{ pt: 4, pb: 2, display: 'flex', justifyContent: 'center' }}>
                   <Avatar
-                    src={avatarImage}
+                      src={
+                        connection.avatar
+                          ? `${baseUrl}${connection.avatar.replace(/\\/g, '/')}`
+                          : avatarImage
+                      }
                     alt={connection.name}
                     sx={{ width: 80, height: 80 }}
                   />

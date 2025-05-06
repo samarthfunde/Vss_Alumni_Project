@@ -8,7 +8,8 @@ import bcrypt from 'bcryptjs';
 import { check, validationResult } from 'express-validator'; 
 
 
-import sendEmail from "../utils/mailer.js";
+import sendEmail from "../utils/mailer1.js";   
+import sendMailToAlumni from "../utils/maileralumni.js";
 
 const router = express.Router();
 
@@ -695,7 +696,46 @@ router.get("/alumni_list", (req, res) => {
             return res.json({ message: "No Alumni available" })
         }
     });
-});
+}); 
+
+// In your routes file (e.g., auth.js)
+router.get('/connection/status/:userId', async (req, res) => {
+    try {
+      const currentUserId = req.params.userId;
+  
+      if (!currentUserId) {
+        return res.status(400).json({ error: 'User ID is required' });
+      }
+  
+      // Fetch all connections where current user is either sender or receiver
+      const connections = await queryAsync(
+        `SELECT * FROM connections 
+         WHERE sender_id = ? OR receiver_id = ?`,
+        [currentUserId, currentUserId]
+      );
+  
+      if (!connections || connections.length === 0) {
+        return res.json({ connections: [] });
+      }
+  
+      // Format the result to return the other user ID and status
+      const formattedConnections = connections.map(conn => {
+        const isSender = conn.sender_id == currentUserId;
+        const otherUserId = isSender ? conn.receiver_id : conn.sender_id;
+  
+        return {
+          connectionId: conn.id,
+          userId: otherUserId,
+          status: conn.status,
+        };
+      });
+  
+      return res.json({ connections: formattedConnections });
+    } catch (error) {
+      console.error('Error fetching connection status:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  });
 
 router.put('/upaccount', avatarUpload.single('image'), async (req, res) => {
     try {
@@ -793,7 +833,7 @@ router.put('/upaccount', avatarUpload.single('image'), async (req, res) => {
 
 const getAllStudentEmails = () => {
     return new Promise((resolve, reject) => {
-      const sql = "SELECT email FROM alumnus_bio";
+      const sql = "SELECT email FROM users WHERE type = 'student'";
       con.query(sql, (err, results) => {
         if (err) {
           reject(err);
@@ -865,6 +905,8 @@ router.post('/connection/send', (req, res) => {
     });
   }); 
 
+ 
+
 
   //connection accept 
 
@@ -886,7 +928,8 @@ router.post('/connection/send', (req, res) => {
     u.name AS sender_name,
     u.email AS sender_email,
     u.alumnus_id,
-    a.batch,
+    a.batch, 
+    a.avatar,
     c.course AS course
 FROM connections cr
 JOIN users u ON cr.sender_id = u.id
@@ -942,7 +985,8 @@ router.post('/connection/respond', (req, res) => {
         u.email,
         ab.batch,
         c.course, 
-        ab.connected_to
+        ab.connected_to, 
+        ab.avatar
       FROM connections con
       JOIN users u ON 
         (u.id = con.sender_id AND con.receiver_id = ?) OR 
@@ -1155,7 +1199,49 @@ router.post('/messages/send', async (req, res) => {
       console.error('Error updating message:', err);
       res.status(500).json({ success: false, message: 'Database error' });
     }
+  }); 
+
+  router.post('/events/send-email', async (req, res) => {
+    const { eventId } = req.body;
+  
+    try {
+      // ✅ Query event details
+      const eventRows = await queryAsync('SELECT * FROM events WHERE id = ?', [eventId]);
+      if (!eventRows || eventRows.length === 0) {
+        return res.status(404).json({ message: 'Event not found' });
+      }
+  
+      const event = eventRows[0];
+  
+      // ✅ Query alumni emails
+      const alumniRows = await queryAsync(
+        'SELECT email FROM users WHERE type = "alumnus" AND email IS NOT NULL'
+      );
+  
+      const emails = alumniRows.map(user => user.email);
+  
+      if (emails.length === 0) {
+        return res.status(400).json({ message: 'No alumni emails found' });
+      }
+  
+      // ✅ Send email
+      const subject = `You're Invited: ${event.title}`;
+      const htmlContent = `
+        <h2>${event.title}</h2>
+        <p><strong>Date:</strong> ${new Date(event.schedule).toLocaleDateString()}</p>
+        <p><strong>Description:</strong></p>
+        <p>${event.content}</p>
+      `;
+  
+      await sendMailToAlumni(emails, subject, htmlContent);
+  
+      res.json({ message: 'Emails sent successfully!' });
+    } catch (error) {
+      console.error('Email sending error:', error);
+      res.status(500).json({ message: 'Failed to send emails.' });
+    }
   });
+  
 
 export { router as adminRouter } 
     

@@ -30,7 +30,8 @@ app.get("/", (req, res) => {
 
 app.use("/auth", adminRouter); 
 
-app.use('/Public', express.static('Public'));
+app.use('/Public', express.static('Public')); 
+
 
 const PORT = process.env.DB_PORT || 3000;
 
