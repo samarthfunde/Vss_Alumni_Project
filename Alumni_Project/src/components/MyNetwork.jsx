@@ -692,190 +692,259 @@ const MyNetwork = () => {
             </Box>
           </Box>
 
-          {/* Chat Messages Area */}
-          <Box sx={{ 
-            flexGrow: 1, 
-            p: 2, 
-            overflowY: "auto", 
-            bgcolor: "#f8f9fa", 
-            display: "flex", 
-            flexDirection: "column" 
-          }}>
-            {chatMessages.map((msg, index) => {
-              const isCurrentUser = String(msg.sender_id) === String(userId);
-              const isDeletedForSender = msg.deleted_for_sender === 1;
-              const isDeletedForReceiver = msg.deleted_for_receiver === 1;
-              const isDeletedForEveryone = isDeletedForSender && isDeletedForReceiver;
-              const isDeletedForMe = isCurrentUser ? isDeletedForSender : isDeletedForReceiver;
-              const isBeingEdited = isEditing && editMessageId === msg.id;
+   {/* Chat Messages Area */}
+<Box sx={{ 
+  flexGrow: 1, 
+  p: 2, 
+  overflowY: "auto", 
+  bgcolor: "#f8f9fa", 
+  display: "flex", 
+  flexDirection: "column" 
+}}>
+  {(() => {
+    // Group messages by date
+    const groupedMessages = {};
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    chatMessages.forEach(msg => {
+      const msgDate = new Date(msg.created_at);
+      msgDate.setHours(0, 0, 0, 0);
+      
+      let dateKey = msgDate.toISOString();
+      groupedMessages[dateKey] = groupedMessages[dateKey] || [];
+      groupedMessages[dateKey].push(msg);
+    });
+    
+    // Render messages with date headers
+    return Object.keys(groupedMessages).map(dateKey => {
+      const messagesForDate = groupedMessages[dateKey];
+      const msgDate = new Date(dateKey);
+      
+      // Determine date label
+      let dateLabel;
+      if (msgDate.getTime() === today.getTime()) {
+        dateLabel = "Today";
+      } else if (msgDate.getTime() === yesterday.getTime()) {
+        dateLabel = "Yesterday";
+      } else {
+        dateLabel = msgDate.toLocaleDateString(undefined, {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+      }
+      
+      return (
+        <React.Fragment key={dateKey}>
+          {/* Date header */}
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              mb: 2,
+              mt: 1,
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{
+                bgcolor: "rgba(0, 0, 0, 0.08)",
+                px: 2,
+                py: 0.5,
+                borderRadius: 4,
+                color: "text.secondary",
+                fontWeight: 500,
+              }}
+            >
+              {dateLabel}
+            </Typography>
+          </Box>
+          
+          {/* Messages for this date */}
+          {messagesForDate.map((msg, index) => {
+            const isCurrentUser = String(msg.sender_id) === String(userId);
+            const isDeletedForSender = msg.deleted_for_sender === 1;
+            const isDeletedForReceiver = msg.deleted_for_receiver === 1;
+            const isDeletedForEveryone = isDeletedForSender && isDeletedForReceiver;
+            const isDeletedForMe = isCurrentUser ? isDeletedForSender : isDeletedForReceiver;
+            const isBeingEdited = isEditing && editMessageId === msg.id;
 
-              let displayText = msg.message_text;
-              if (isDeletedForEveryone) {
-                displayText = "Message deleted for everyone";
-              } else if (isDeletedForMe) {
-                displayText = isCurrentUser ? "You deleted this message" : "This message was deleted";
-              }
+            let displayText = msg.message_text;
+            if (isDeletedForEveryone) {
+              displayText = "Message deleted for everyone";
+            } else if (isDeletedForMe) {
+              displayText = isCurrentUser ? "You deleted this message" : "This message was deleted";
+            }
 
-              return (
+            return (
+              <Box
+                key={`msg-${index}-${msg.created_at || Date.now()}`}
+                sx={{
+                  alignSelf: isCurrentUser ? "flex-end" : "flex-start",
+                  mb: 1.5,
+                  maxWidth: "75%",
+                  position: "relative",
+                }}
+              >
                 <Box
-                  key={`msg-${index}-${msg.created_at || Date.now()}`}
                   sx={{
-                    alignSelf: isCurrentUser ? "flex-end" : "flex-start",
-                    mb: 1.5,
-                    maxWidth: "75%",
-                    position: "relative",
+                    display: "flex",
+                    alignItems: "flex-start",
+                    flexDirection: isCurrentUser ? "row" : "row-reverse",
                   }}
                 >
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      flexDirection: isCurrentUser ? "row" : "row-reverse",
-                    }}
-                  >
-                    {/* Show menu only if message is not deleted for me or for everyone */}
-                    {isCurrentUser && !isDeletedForMe && !isDeletedForEveryone && (
-                      <IconButton
-                        size="small"
-                        sx={{
-                          ml: isCurrentUser ? 1 : 0,
-                          mr: isCurrentUser ? 0 : 1,
-                          p: 0.5,
-                          color: "text.secondary",
-                        }}
-                        onClick={(e) => handleOpenMessageMenu(e, msg)}
-                      >
-                        <MoreVertIcon fontSize="small" />
-                      </IconButton>
-                    )}
-
-                    <Box
+                  {/* Show menu only if message is not deleted for me or for everyone */}
+                  {isCurrentUser && !isDeletedForMe && !isDeletedForEveryone && (
+                    <IconButton
+                      size="small"
                       sx={{
-                        p: 1.5,
-                        borderRadius: 2,
-                        backgroundColor:
-                          isDeletedForMe || isDeletedForEveryone
-                            ? "#f1f1f1"
-                            : isCurrentUser
-                            ? "#1976d2"
-                            : "#f5f5f5",
-                        color:
-                          isDeletedForMe || isDeletedForEveryone
-                            ? "#757575"
-                            : isCurrentUser
-                            ? "#fff"
-                            : "#000",
-                        fontStyle: isDeletedForMe || isDeletedForEveryone ? "italic" : "normal",
-                        border: isBeingEdited ? "2px solid #ffc107" : "none",
+                        ml: isCurrentUser ? 1 : 0,
+                        mr: isCurrentUser ? 0 : 1,
+                        p: 0.5,
+                        color: "text.secondary",
                       }}
+                      onClick={(e) => handleOpenMessageMenu(e, msg)}
                     >
-                      <Typography variant="body1">{displayText}</Typography>
-                    </Box>
-                  </Box>
+                      <MoreVertIcon fontSize="small" />
+                    </IconButton>
+                  )}
 
                   <Box
                     sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: isCurrentUser ? "flex-end" : "flex-start",
-                      mt: 0.5,
-                      px: 1,
+                      p: 1.5,
+                      borderRadius: 2,
+                      backgroundColor:
+                        isDeletedForMe || isDeletedForEveryone
+                          ? "#f1f1f1"
+                          : isCurrentUser
+                          ? "#1976d2"
+                          : "#f5f5f5",
+                      color:
+                        isDeletedForMe || isDeletedForEveryone
+                          ? "#757575"
+                          : isCurrentUser
+                          ? "#fff"
+                          : "#000",
+                      fontStyle: isDeletedForMe || isDeletedForEveryone ? "italic" : "normal",
+                      border: isBeingEdited ? "2px solid #ffc107" : "none",
                     }}
                   >
-                    <Typography variant="caption" color="text.secondary">
-                      {new Date(msg.created_at).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                      {msg.is_edited === 1 && !isDeletedForMe && !isDeletedForEveryone && " (edited)"}
-                    </Typography>
-
-                    {/* Show read icon only if message is not deleted for the sender */}
-                    {isCurrentUser && !isDeletedForMe && !isDeletedForEveryone && (
-                      <Box sx={{ display: "flex", alignItems: "center", ml: 1 }}>
-                        {msg.read_status === "read" ? (
-                          <MarkChatReadIcon sx={{ fontSize: 14, color: "#4caf50" }} />
-                        ) : (
-                          <CircleIcon sx={{ fontSize: 8, color: "#9e9e9e" }} />
-                        )}
-                      </Box>
-                    )}
+                    <Typography variant="body1">{displayText}</Typography>
                   </Box>
                 </Box>
-              );
-            })}
-            <div ref={messagesEndRef} />
-          </Box>
 
-          {/* Message Input Area */}
-          <Box sx={{ 
-            p: 2, 
-            borderTop: "1px solid #e0e0e0",
-            bgcolor: "#fff"
-          }}>
-            <TextField
-              fullWidth
-              placeholder={isEditing ? "Edit message..." : "Type a message..."}
-              variant="outlined"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              size="small"
-              autoComplete="off"
-              InputProps={{
-                startAdornment: isEditing && (
-                  <InputAdornment position="start">
-                    <Box sx={{ 
-                      bgcolor: "#ffc107", 
-                      color: "white", 
-                      px: 1, 
-                      py: 0.5, 
-                      borderRadius: 1, 
-                      fontSize: "0.75rem",
-                      display: "flex",
-                      alignItems: "center",
-                      mr: 1
-                    }}>
-                      <EditIcon fontSize="small" sx={{ mr: 0.5, fontSize: "0.875rem" }} />
-                      Editing
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: isCurrentUser ? "flex-end" : "flex-start",
+                    mt: 0.5,
+                    px: 1,
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary">
+                    {new Date(msg.created_at).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                    {msg.is_edited === 1 && !isDeletedForMe && !isDeletedForEveryone && " (edited)"}
+                  </Typography>
+
+                  {/* Show read icon only if message is not deleted for the sender */}
+                  {isCurrentUser && !isDeletedForMe && !isDeletedForEveryone && (
+                    <Box sx={{ display: "flex", alignItems: "center", ml: 1 }}>
+                      {msg.read_status === "read" ? (
+                        <MarkChatReadIcon sx={{ fontSize: 14, color: "#4caf50" }} />
+                      ) : (
+                        <CircleIcon sx={{ fontSize: 8, color: "#9e9e9e" }} />
+                      )}
                     </Box>
-                  </InputAdornment>
-                ),
-                endAdornment: (
-                  <InputAdornment position="end">
-                    {isEditing && (
-                      <IconButton 
-                        size="small"
-                        onClick={handleCancelEdit}
-                        sx={{ mr: 0.5 }}
-                      >
-                        <CloseIcon fontSize="small" />
-                      </IconButton>
-                    )}
-                    <IconButton 
-                      color="primary" 
-                      onClick={handleSendMessage}
-                      disabled={!message.trim()}
-                    >
-                      <SendIcon />
-                    </IconButton>
-                  </InputAdornment>
-                )
-              }}
-              sx={{ 
-                "& .MuiOutlinedInput-root": { 
-                  borderRadius: "20px",
-                  ...(isEditing && { 
-                    borderColor: "#ffc107", 
-                    "&.Mui-focused": { 
-                      borderColor: "#ffc107", 
-                      boxShadow: "0 0 0 2px rgba(255, 193, 7, 0.2)" 
-                    }
-                  })
-                } 
-              }}
-            />
+                  )}
+                </Box>
+              </Box>
+            );
+          })}
+        </React.Fragment>
+      );
+    });
+  })()}
+  <div ref={messagesEndRef} />
+</Box>
+
+{/* Message Input Area */}
+<Box sx={{ 
+  p: 2, 
+  borderTop: "1px solid #e0e0e0",
+  bgcolor: "#fff"
+}}>
+  <TextField
+    fullWidth
+    placeholder={isEditing ? "Edit message..." : "Type a message..."}
+    variant="outlined"
+    value={message}
+    onChange={(e) => setMessage(e.target.value)}
+    onKeyPress={handleKeyPress}
+    size="small"
+    autoComplete="off"
+    InputProps={{
+      startAdornment: isEditing && (
+        <InputAdornment position="start">
+          <Box sx={{ 
+            bgcolor: "#ffc107", 
+            color: "white", 
+            px: 1, 
+            py: 0.5, 
+            borderRadius: 1, 
+            fontSize: "0.75rem",
+            display: "flex",
+            alignItems: "center",
+            mr: 1
+          }}>
+            <EditIcon fontSize="small" sx={{ mr: 0.5, fontSize: "0.875rem" }} />
+            Editing
           </Box>
+        </InputAdornment>
+      ),
+      endAdornment: (
+        <InputAdornment position="end">
+          {isEditing && (
+            <IconButton 
+              size="small"
+              onClick={handleCancelEdit}
+              sx={{ mr: 0.5 }}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          )}
+          <IconButton 
+            color="primary" 
+            onClick={handleSendMessage}
+            disabled={!message.trim()}
+          >
+            <SendIcon />
+          </IconButton>
+        </InputAdornment>
+      )
+    }}
+    sx={{ 
+      "& .MuiOutlinedInput-root": { 
+        borderRadius: "20px",
+        ...(isEditing && { 
+          borderColor: "#ffc107", 
+          "&.Mui-focused": { 
+            borderColor: "#ffc107", 
+            boxShadow: "0 0 0 2px rgba(255, 193, 7, 0.2)" 
+          }
+        })
+      } 
+    }}
+  />
+</Box>
         </Box>
       </Dialog>
 
