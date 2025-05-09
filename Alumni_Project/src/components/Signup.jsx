@@ -14,17 +14,94 @@ const Signup = () => {
         course_id: "",
         course_name: "",
         grn_number: "",
+        hostel_name: "",
+        isCustomHostel: false
     });
 
     const [courses, setCourses] = useState([]);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [hoveredItem, setHoveredItem] = useState(null);  // To manage hover effect
+    const [isHostelDropdownOpen, setIsHostelDropdownOpen] = useState(false);
+    const [hoveredItem, setHoveredItem] = useState(null);
+    const [isUserTypeDropdownOpen, setIsUserTypeDropdownOpen] = useState(false);
+    const [hoveredUserTypeItem, setHoveredUserTypeItem] = useState(null);
+    const [hoveredHostelItem, setHoveredHostelItem] = useState(null);
     const navigate = useNavigate();
+
+    const hostelOptions = [
+        'Haribhau Phatak',
+        'Lajpatray Hostel',
+        'PD Karkhanis',
+        'Apte Hostel',
+        'Sumitra Sadan',
+        'Wing A Hostel',
+        'Wing B Hostel',
+        'Other'
+    ];
+
+    const userTypeOptions = ['alumnus', 'admin', 'student'];
+
+    const handleUserTypeClick = () => {
+        setIsUserTypeDropdownOpen(!isUserTypeDropdownOpen);
+        if (isDropdownOpen) setIsDropdownOpen(false);
+        if (isHostelDropdownOpen) setIsHostelDropdownOpen(false);
+    };
+
+    const handleUserTypeSelect = (userType) => {
+        setValues({
+            ...values,
+            userType: userType,
+            ...(userType !== "alumnus" && { course_id: "", course_name: "" }),
+            ...(userType !== "student" && { grn_number: "", hostel_name: "", isCustomHostel: false })
+        });
+        setIsUserTypeDropdownOpen(false);
+    };
+
+    const validateForm = () => {
+        if (!values.name) {
+            toast.error("Name is required");
+            return false;
+        }
+        if (!values.email) {
+            toast.error("Email is required");
+            return false;
+        }
+        if (!values.password) {
+            toast.error("Password is required");
+            return false;
+        }
+        if (!values.userType) {
+            toast.error("User Type is required");
+            return false;
+        }
+
+        if (values.userType === "alumnus" && !values.course_id) {
+            toast.error("Course is required for Alumnus");
+            return false;
+        }
+
+        if (values.userType === "student") {
+            if (!values.grn_number) {
+                toast.error("GRN Number is required for Student");
+                return false;
+            }
+            if (!values.hostel_name) {
+                toast.error("Hostel Name is required for Student");
+                return false;
+            }
+        }
+
+        return true;
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
 
-        axios.post(`${baseUrl}auth/signup`, values)
+        if (!validateForm()) return;
+
+        const submissionData = { ...values };
+        delete submissionData.isCustomHostel;
+
+        axios.post(`${baseUrl}auth/signup`, submissionData)
             .then((res) => {
                 if (res.data.email) {
                     return toast.warning("Email Already Exists");
@@ -44,7 +121,6 @@ const Signup = () => {
                 const errorMsg = err?.response?.data?.sqlMessage ||
                     err?.response?.data?.message ||
                     "An unexpected error occurred";
-
                 toast.error(errorMsg);
             });
     };
@@ -58,17 +134,90 @@ const Signup = () => {
     }, []);
 
     const handleCourseClick = () => {
-        setIsDropdownOpen(!isDropdownOpen); // Toggle dropdown visibility
+        setIsDropdownOpen(!isDropdownOpen);
+        if (isHostelDropdownOpen) setIsHostelDropdownOpen(false);
+        if (isUserTypeDropdownOpen) setIsUserTypeDropdownOpen(false);
+    };
+
+    const handleHostelClick = () => {
+        setIsHostelDropdownOpen(!isHostelDropdownOpen);
+        if (isDropdownOpen) setIsDropdownOpen(false);
+        if (isUserTypeDropdownOpen) setIsUserTypeDropdownOpen(false);
     };
 
     const handleCourseSelect = (course) => {
         setValues({
             ...values,
             course_id: course.id,
-            course_name: course.course, // Store the selected course name
+            course_name: course.course,
         });
-        setIsDropdownOpen(false); // Close the dropdown after selection
+        setIsDropdownOpen(false);
     };
+
+    const handleHostelSelect = (hostel) => {
+        if (hostel === "Other") {
+            setValues({ ...values, hostel_name: "", isCustomHostel: true });
+        } else {
+            setValues({ ...values, hostel_name: hostel, isCustomHostel: false });
+        }
+        setIsHostelDropdownOpen(false);
+    };
+
+    useEffect(() => {
+        function handleClickOutside(event) {
+            const courseDropdown = document.getElementById('course-dropdown-container');
+            const hostelDropdown = document.getElementById('hostel-dropdown-container');
+            const userTypeDropdown = document.getElementById('userType-dropdown-container');
+
+            if (isDropdownOpen && courseDropdown && !courseDropdown.contains(event.target)) {
+                setIsDropdownOpen(false);
+            }
+            if (isHostelDropdownOpen && hostelDropdown && !hostelDropdown.contains(event.target)) {
+                setIsHostelDropdownOpen(false);
+            }
+            if (isUserTypeDropdownOpen && userTypeDropdown && !userTypeDropdown.contains(event.target)) {
+                setIsUserTypeDropdownOpen(false);
+            }
+        }
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [isDropdownOpen, isHostelDropdownOpen, isUserTypeDropdownOpen]);
+
+    const dropdownStyle = {
+        border: '1px solid #ccc',
+        maxHeight: '200px',
+        overflowY: 'auto',
+        position: 'absolute',
+        background: '#fff',
+        width: 'calc(100% - 30px)',
+        zIndex: 1000,
+        borderRadius: '4px',
+    };
+
+    const dropdownItemStyle = (id) => ({
+        padding: '8px',
+        cursor: 'pointer',
+        backgroundColor: hoveredItem === id ? '#f1f1f1' : 'transparent',
+        marginBottom: '5px',
+    });
+
+    const userTypeDropdownItemStyle = (userType) => ({
+        padding: '8px',
+        cursor: 'pointer',
+        backgroundColor: hoveredUserTypeItem === userType ? '#f1f1f1' : 'transparent',
+        marginBottom: '5px',
+        textTransform: 'capitalize'
+    });
+
+    const hostelDropdownItemStyle = (hostel) => ({
+        padding: '8px',
+        cursor: 'pointer',
+        backgroundColor: hoveredHostelItem === hostel ? '#f1f1f1' : 'transparent',
+        marginBottom: '5px',
+    });
 
     return (
         <>
@@ -91,6 +240,7 @@ const Signup = () => {
                             <div className="row justify-content-center">
                                 <div className="container col-lg-6 col-md-8 col-sm-10">
                                     <form onSubmit={handleSubmit} id="create_account">
+                                        {/* Basic Fields */}
                                         <div className="form-group">
                                             <label htmlFor="name" className="control-label">Name</label>
                                             <input
@@ -98,7 +248,6 @@ const Signup = () => {
                                                 type="text"
                                                 className="form-control"
                                                 id="name"
-                                                name="name"
                                                 required
                                             />
                                         </div>
@@ -109,7 +258,6 @@ const Signup = () => {
                                                 type="email"
                                                 className="form-control"
                                                 id="email"
-                                                name="email"
                                                 required
                                             />
                                         </div>
@@ -120,81 +268,139 @@ const Signup = () => {
                                                 type="password"
                                                 className="form-control"
                                                 id="password"
-                                                name="password"
                                                 required
                                             />
                                         </div>
-                                        <div className="form-group">
-                                            <label htmlFor="userType" className="control-label">User Type</label>
-                                            <br />
-                                            <select
-                                                onChange={(e) => setValues({ ...values, userType: e.target.value })}
-                                                className="custom-select"
-                                                id="userType"
-                                                name="userType"
-                                                required
-                                                value={values.userType}
-                                                style={{ width: '50%' }}
-                                            >
-                                                <option value="" disabled>Please select</option>
-                                                <option value="alumnus">Alumnus</option>
-                                                <option value="admin">Admin</option>
-                                                <option value="student">Student</option>
-                                            </select>
-                                        </div>
 
-                                        {values.userType === "alumnus" && (
-                                            <div className="form-group">
-                                                <label htmlFor="course_id" className="control-label">Course</label>
-                                                <div className="form-control" onClick={handleCourseClick} style={{ cursor: 'pointer' }}>
-                                                    {values.course_name || 'Select Course'}
+                                        {/* User Type Dropdown */}
+                                        <div className="form-group" id="userType-dropdown-container">
+                                            <label className="control-label">User Type</label>
+                                            <div className="position-relative">
+                                                <div
+                                                    className="form-control d-flex justify-content-between align-items-center"
+                                                    onClick={handleUserTypeClick}
+                                                    style={{ cursor: 'pointer' }}
+                                                >
+                                                    <span style={{ textTransform: 'capitalize' }}>{values.userType || 'Select User Type'}</span>
+                                                    <i className="fa fa-chevron-down" style={{ fontSize: '12px' }}></i>
                                                 </div>
-                                                {isDropdownOpen && (
-                                                    <div className="dropdown-list" style={{
-                                                        border: '1px solid #ccc',
-                                                        maxHeight: '200px',
-                                                        overflowY: 'auto',
-                                                        position: 'absolute',
-                                                        background: '#fff',
-                                                        width: 'calc(100% - 30px)', // Decrease width by 20px
-                                                        zIndex: 1000,
-                                                        borderRadius: '4px',
-                                                    }}>
-                                                        {courses.map((course) => (
+                                                {isUserTypeDropdownOpen && (
+                                                    <div className="dropdown-list" style={dropdownStyle}>
+                                                        {userTypeOptions.map((userType) => (
                                                             <div
-                                                                key={course.id}
-                                                                className="dropdown-item"
-                                                                onClick={() => handleCourseSelect(course)}
-                                                                style={{
-                                                                    padding: '8px',
-                                                                    cursor: 'pointer',
-                                                                    backgroundColor: hoveredItem === course.id ? '#f1f1f1' : 'transparent',
-                                                                    marginBottom: '5px',
-                                                                }}
-                                                                onMouseEnter={() => setHoveredItem(course.id)} // Set hover state
-                                                                onMouseLeave={() => setHoveredItem(null)} // Reset hover state
+                                                                key={userType}
+                                                                onClick={() => handleUserTypeSelect(userType)}
+                                                                style={userTypeDropdownItemStyle(userType)}
+                                                                onMouseEnter={() => setHoveredUserTypeItem(userType)}
+                                                                onMouseLeave={() => setHoveredUserTypeItem(null)}
                                                             >
-                                                                {course.course}
+                                                                {userType}
                                                             </div>
                                                         ))}
                                                     </div>
                                                 )}
                                             </div>
+                                        </div>
+
+                                        {/* Alumnus Fields */}
+                                        {values.userType === "alumnus" && (
+                                            <div className="form-group" id="course-dropdown-container">
+                                                <label className="control-label">Course</label>
+                                                <div className="position-relative">
+                                                    <div
+                                                        className="form-control d-flex justify-content-between align-items-center"
+                                                        onClick={handleCourseClick}
+                                                        style={{ cursor: 'pointer' }}
+                                                    >
+                                                        <span>{values.course_name || 'Select Course'}</span>
+                                                        <i className="fa fa-chevron-down" style={{ fontSize: '12px' }}></i>
+                                                    </div>
+                                                    {isDropdownOpen && (
+                                                        <div className="dropdown-list" style={dropdownStyle}>
+                                                            {courses.map((course) => (
+                                                                <div
+                                                                    key={course.id}
+                                                                    onClick={() => handleCourseSelect(course)}
+                                                                    style={dropdownItemStyle(course.id)}
+                                                                    onMouseEnter={() => setHoveredItem(course.id)}
+                                                                    onMouseLeave={() => setHoveredItem(null)}
+                                                                >
+                                                                    {course.course}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
                                         )}
 
+                                        {/* Student Fields */}
                                         {values.userType === "student" && (
-                                            <div className="form-group">
-                                                <label htmlFor="grn_number" className="control-label">GRN Number</label>
-                                                <input
-                                                    onChange={(e) => setValues({ ...values, grn_number: e.target.value })}
-                                                    type="text"
-                                                    className="form-control"
-                                                    id="grn_number"
-                                                    name="grn_number"
-                                                    required
-                                                    value={values.grn_number}
-                                                />
-                                            </div>
+                                            <>
+                                                <div className="form-group">
+                                                    <label className="control-label">GRN Number</label>
+                                                    <input
+                                                        type="text"
+                                                        className="form-control"
+                                                        value={values.grn_number}
+                                                        onChange={(e) => setValues({ ...values, grn_number: e.target.value })}
+                                                        required
+                                                    />
+                                                </div>
+
+                                                <div className="form-group" id="hostel-dropdown-container">
+                                                    <label className="control-label">Hostel Name</label>
+                                                    {values.isCustomHostel ? (
+                                                        <div className="input-group">
+                                                            <input
+                                                                type="text"
+                                                                className="form-control"
+                                                                value={values.hostel_name}
+                                                                onChange={(e) => setValues({ ...values, hostel_name: e.target.value })}
+                                                                placeholder="Enter your hostel name"
+                                                            />
+                                                            <div className="input-group-append">
+                                                                <button
+                                                                    className="btn btn-outline-secondary"
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setValues({ ...values, isCustomHostel: false, hostel_name: "" });
+                                                                        setIsHostelDropdownOpen(true);
+                                                                    }}
+                                                                >
+                                                                    <span>×</span>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="position-relative">
+                                                            <div
+                                                                className="form-control d-flex justify-content-between align-items-center"
+                                                                onClick={handleHostelClick}
+                                                                style={{ cursor: 'pointer' }}
+                                                            >
+                                                                <span>{values.hostel_name || 'Select Hostel'}</span>
+                                                                <i className="fa fa-chevron-down" style={{ fontSize: '12px' }}></i>
+                                                            </div>
+                                                            {isHostelDropdownOpen && (
+                                                                <div className="dropdown-list" style={dropdownStyle}>
+                                                                    {hostelOptions.map((hostel) => (
+                                                                        <div
+                                                                            key={hostel}
+                                                                            onClick={() => handleHostelSelect(hostel)}
+                                                                            style={hostelDropdownItemStyle(hostel)}
+                                                                            onMouseEnter={() => setHoveredHostelItem(hostel)}
+                                                                            onMouseLeave={() => setHoveredHostelItem(null)}
+                                                                        >
+                                                                            {hostel}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </>
                                         )}
 
                                         <hr className="divider" />
