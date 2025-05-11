@@ -51,7 +51,7 @@ const galleryUpload = multer({ storage: galleryStorage });
 router.get('/alumnusdetails', (req, res) => {
     const alumnusId = req.query.id; // Get the ID from query parameters
 
-    const sql = "SELECT * FROM alumnus_bio WHERE id = ?";
+    const sql = "SELECT *,DATE_FORMAT(dob, '%Y-%m-%d') as dob FROM alumnus_bio WHERE id = ?";
     con.query(sql, [alumnusId], (err, result) => {
         if (err) {
             console.error("Error executing SQL query:", err);
@@ -66,7 +66,115 @@ router.get('/alumnusdetails', (req, res) => {
     });
 });
 
+router.get('/studentdetails', (req, res) => {
+    const studentId = req.query.id; // Get the ID from query parameters
 
+    const sql = "SELECT *,DATE_FORMAT(dob, '%Y-%m-%d') as dob FROM users WHERE id = ?";
+    con.query(sql, [studentId], (err, result) => {
+        if (err) {
+            console.error("Error executing SQL query:", err);
+            return res.status(500).json({ error: "Query Error" });
+        }
+
+        if (result.length > 0) {
+            return res.json(result); // Send as array to match frontend logic
+        } else {
+            return res.status(404).json({ message: "Alumnus not found" });
+        }
+    });
+});  
+//check code for upaccountstudent 
+
+router.put('/upaccountstudent', avatarUpload.single('image'), async (req, res) => {
+try {
+const {
+name,
+course_id,
+email,
+gender,
+batch,
+password,
+user_id,
+dob,
+contact_number,
+hostel_name,
+year_of_joining_vss,
+education_details
+} = req.body;
+
+
+if (!user_id) {
+  return res.status(400).json({ error: 'Missing user ID' });
+}
+
+let hashedPassword = null;
+if (password) {
+  hashedPassword = await bcrypt.hash(password, 10);
+}
+
+const updateFields = [
+  name,
+  course_id,
+  email,
+  gender,
+  batch,
+  dob,
+  contact_number,
+  hostel_name,
+  year_of_joining_vss,
+  education_details,
+  user_id
+];
+
+const updateSql = `
+  UPDATE users SET 
+    name = ?, 
+    course_id = ?, 
+    email = ?, 
+    gender = ?, 
+    batch = ?, 
+    dob = ?, 
+    contact_number = ?, 
+    hostel_name = ?, 
+    year_of_joining_vss = ?, 
+    education_details = ?
+  WHERE id = ?
+`;
+
+con.query(updateSql, updateFields, (err, result) => {
+  if (err) {
+    console.error('Error updating users table:', err);
+    return res.status(500).json({ error: 'Database update error' });
+  }
+
+  // Handle avatar update
+  if (req.file) {
+    const avatarPath = req.file.path;
+    con.query('UPDATE users SET avatar = ? WHERE id = ?', [avatarPath, user_id], (err2) => {
+      if (err2) {
+        console.error('Error updating avatar:', err2);
+      }
+    });
+  }
+
+  // Handle password update
+  if (hashedPassword) {
+    con.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, user_id], (err3) => {
+      if (err3) {
+        console.error('Error updating password:', err3);
+        return res.status(500).json({ error: 'Error updating password' });
+      }
+      return res.json({ message: 'Account updated successfully' });
+    });
+  } else {
+    return res.json({ message: 'Account updated successfully' });
+  }
+});
+} catch (error) {
+console.error('Server exception:', error);
+res.status(500).json({ error: 'Internal server error' });
+}
+});
 router.post("/login", (req, res) => {
     const sql = "SELECT * from users Where email=?";
     con.query(sql, [req.body.email], (err, result) => {
@@ -92,74 +200,6 @@ router.post("/login", (req, res) => {
 
 
 
-// router.post("/signup", async (req, res) => {
-//     const { name, email, password, userType, course_id, grn_number } = req.body;
-
-//     try {
-//         const hashedPassword = await bcrypt.hash(password, 10); // Await the hash function
-
-//         const sql = "SELECT * from users Where email=?";
-//         con.query(sql, [email], async (err, result) => {
-//             if (err) return res.json({ Error: "Query Error" });
-
-//             if (result.length > 0) {
-//                 return res.json({ email: result[0].email });
-//             } else {
-//                 if (userType === "alumnus") {
-//                     // insert into alumnus_bio table
-//                     const alumnusSql = "INSERT INTO alumnus_bio(name, email, course_id) VALUES(?,?,?)";
-//                     con.query(alumnusSql, [name, email, course_id], async (alumnusErr, alumnusResult) => {
-//                         if (alumnusErr) {
-//                             console.error("Error executing SQL query for alumnus_bio:", alumnusErr);
-//                             return res.status(500).json({ error: "Alumnus Bio Query Error", signupStatus: false });
-//                         }
-
-//                         // insert into users table with alumnus_id
-//                         const alumnusId = alumnusResult.insertId;
-//                         const userSql = "INSERT INTO users(name, email, password, type, alumnus_id) VALUES(?,?,?,?,?)";
-//                         con.query(userSql, [name, email, hashedPassword, userType, alumnusId], (userErr, userResult) => {
-//                             if (userErr) {
-//                                 console.error("Error executing SQL query for users:", userErr);
-//                                 return res.status(500).json({ error: "User Query Error", signupStatus: false });
-//                             }
-//                             return res.json({ message: 'Signup Successful', userId: userResult.insertId, signupStatus: true });
-//                         });
-//                     });
-//                 }
-
-//                 else if (userType === "student") {
-//                     if (!grn_number) {
-//                         return res.status(400).json({ error: "GRN number is required for students", signupStatus: false });
-//                     }
-
-//                     const studentSql = "INSERT INTO users(name, email, password, type, grn_number) VALUES(?,?,?,?,?)";
-//                     con.query(studentSql, [name, email, hashedPassword, userType, grn_number], (err, result) => {
-//                         if (err) {
-//                             console.error("Error executing SQL query for student:", err);
-//                             return res.status(500).json({ error: "Student Query Error", signupStatus: false });
-//                         }
-//                         return res.json({ message: 'Student Signup Successful', userId: result.insertId, signupStatus: true });
-//                     });
-//                 }
-
-//                 else {
-//                     // for admin or any other role
-//                     const sql = "INSERT INTO users(name, email, password, type) VALUES(?,?,?,?)";
-//                     con.query(sql, [name, email, hashedPassword, userType], (err, result) => {
-//                         if (err) {
-//                             console.error("Error executing SQL query for users:", err);
-//                             return res.status(500).json({ error: "User Query Error", signupStatus: false });
-//                         }
-//                         return res.json({ message: 'Signup Successful', userId: result.insertId, signupStatus: true });
-//                     });
-//                 }
-//             }
-//         });
-//     } catch (error) {
-//         console.error("Error hashing password:", error);
-//         return res.status(500).json({ error: "Password Hashing Error", signupStatus: false });
-//     }
-// });
 
 router.post("/signup", async (req, res) => {
     const { name, email, password, userType, course_id, grn_number, hostel_name } = req.body;

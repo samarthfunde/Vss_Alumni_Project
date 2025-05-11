@@ -30,7 +30,9 @@ import ManageEvents from "./admin/save/ManageEvents";
 import View_Forum from "./components/view/View_Forum";
 import ManageForum from "./admin/save/ManageForum";
 import ManageUser from "./admin/save/ManageUser";
-import ViewAlumni from "./admin/view/ViewAlumni";
+import ViewAlumni from "./admin/view/ViewAlumni";  
+import StudentAccount from "./components/StudentAccount";
+
 import { AuthProvider, useAuth } from './AuthContext';
 import ScrollToTop from "./components/ScrollToTop";
 import Manage_Career from "./components/manage/Manage_Career";
@@ -55,7 +57,7 @@ function App() {
 
 
 function AppRouter() {
-  const { isLoggedIn, isAdmin } = useAuth();
+  const { isLoggedIn, isAdmin, isStudent } = useAuth();
   const location = useLocation();
   const isDashboardRoute = location.pathname.startsWith("/dashboard");
 
@@ -77,7 +79,7 @@ function AppRouter() {
         {isLoggedIn ? (
     <>
         <Route path="/alumni" element={<AlumniList />} />
-        <Route path="/jobs" element={<Careers />} /> 
+        <Route path="/jobs" element={<Careers />} />  
         <Route path="/MyNetwork" element={<MyNetwork/>}/>
     </>
 ):(   
@@ -120,7 +122,10 @@ function AppRouter() {
           </Route>
         )}
         <Route path="events/view" element={<View_Event />} />
-        {isLoggedIn && <Route path="account" element={<MyAccount />} />}
+        
+    {isLoggedIn && (
+      <Route path="account" element={isStudent ? <StudentAccount /> : <MyAccount />} />
+    )}
         <Route path="forum/view" element={<View_Forum />} />
         <Route path="jobs/add" element={<ManageJobs />} />
         {/* <Route path="jobs/add" element={<Manage_Career />} /> */}

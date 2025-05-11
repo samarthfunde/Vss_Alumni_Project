@@ -286,8 +286,16 @@ const MyAccount = () => {
         const alumnusDetailsRes = await axios.get(`${baseUrl}auth/alumnusdetails?id=${alumnus_id}`);
         const coursesRes = await axios.get(`${baseUrl}auth/courses`);
 
-        const userData = alumnusDetailsRes.data[0];
-        setAcc(userData);
+        const userData = alumnusDetailsRes.data[0]; 
+         
+        if (userData.dob) {
+          // Format to yyyy-mm-dd
+          const dateObj = new Date(userData.dob);
+          const formattedDob = dateObj.toISOString().split('T')[0];
+          userData.dob = formattedDob;
+          } 
+        
+          setAcc(userData);
         setCourses(coursesRes.data);
         
         // Check if "other" options are selected from existing data
