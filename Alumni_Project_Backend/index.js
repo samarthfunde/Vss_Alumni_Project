@@ -9,14 +9,14 @@ dotenv.config();
 const app = express();
 
 app.use(cors({
-    origin: ['http://localhost:5173'],
+    origin: ['http://localhost:5173','https://vss-alumni-project.vercel.app'],
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
     credentials: true,
 }));
 
 // Handle preflight requests
 app.options('*', cors({
-    origin: ['http://localhost:5173'],
+    origin: ['http://localhost:5173','https://vss-alumni-project.vercel.app'],
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
     credentials: true,
 }));
