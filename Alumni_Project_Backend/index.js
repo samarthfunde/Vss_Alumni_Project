@@ -1,40 +1,26 @@
-import express from "express";
 import cors from "cors";
+import dotenv from "dotenv";
+import express from "express";
 import { adminRouter } from "./Routes/AdminRoutes.js";
-import dotenv from "dotenv"; 
-
 
 dotenv.config();
 
 const app = express();
 
-app.use(cors({
-    origin: ['http://localhost:5173','https://vss-alumni-project.vercel.app'],
-    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
-    credentials: true,
-}));
-
-// Handle preflight requests
-app.options('*', cors({
-    origin: ['http://localhost:5173','https://vss-alumni-project.vercel.app'],
-    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
-    credentials: true,
-}));
+app.use(cors());
 
 app.use(express.json());
 
-
 app.get("/", (req, res) => {
-    res.send("Hello from Alumni Server!");
+  res.send("Hello from Alumni Server!");
 });
 
-app.use("/auth", adminRouter); 
+app.use("/auth", adminRouter);
 
-app.use('/Public', express.static('Public')); 
+app.use("/Public", express.static("Public"));
 
-
-const PORT = process.env.DB_PORT || 3000;
+const PORT = 3000;
 
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });
